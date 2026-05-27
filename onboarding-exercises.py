@@ -26,6 +26,121 @@ import os
 import ctypes
 import time
 
+def plot_mw_vcirc(R0,ro,vo,filename="mw_vcirc.png"):
+    # get each component
+
+    bulge = MWPotential2014[0]
+    disk = MWPotential2014[1]
+    halo = MWPotential2014[2]
+
+        # get each component's vcirc plot in physical units
+    MWPotential2014.plotRotcurve(
+        Rrange=[0.1,100],
+        ro=ro.value,
+        vo=vo.value,
+        grid=1001,
+        use_physical=True,
+        label="Total")
+
+    bulge.plotRotcurve(
+        Rrange=[0.1,100],
+        ro=ro.value,
+        vo=vo.value,
+        grid=1001,
+        use_physical=True,
+        overplot=True,
+        label="Bulge")
+
+    disk.plotRotcurve(
+        Rrange=[0.1,100],
+        ro=ro.value,
+        vo=vo.value,
+        grid=1001,
+        use_physical=True,
+        overplot=True,
+        label="Disk")
+    
+    halo.plotRotcurve(
+        Rrange=[0.1,100],
+        ro=ro.value,
+        vo=vo.value,
+        grid=1001,
+        use_physical=True,
+        overplot=True,
+        label="Halo")
+            
+    # find circular velocity at R0 = 8kpc
+    V0 = vcirc(MWPotential2014, R0, ro=ro, vo=vo)
+    plt.scatter(R0.value, V0, label="$v_C(R_0=8kpc)$",color="violet",zorder=5)
+
+    # 3. Add single Hernquist
+
+    hp = HernquistPotential(
+        amp=1e12 * u.Msun,
+        a=30 * u.kpc,
+        ro=ro, 
+        vo=vo)
+
+    hp.plotRotcurve(
+        Rrange=[0.1,100],
+        ro=ro.value,
+        vo=vo.value,
+        grid=1001,
+        use_physical=True,
+        overplot=True,
+        label="Single Hernquist potential"
+        )
+
+    plt.legend()
+    plt.title("Exercise 1.1: MWPotential2014 circular-velocity curve contributions")
+
+    plt.savefig(filename)
+    plt.close()
+
+def plot_mw_density(ro,vo,r=np.logspace(-1,2,500),filename="mw_density.png"):
+    # get r in galpy units
+    r_galpy = r/ro.value
+
+    rho = np.array([evaluateDensities(
+        MWPotential2014,
+        R,
+        0.0,
+        ro=ro.value,
+        vo=vo.value,
+        use_physical=True) 
+        for R in r_galpy]) 
+        
+    plt.loglog(r, rho)
+
+    plt.title("Logarithmic plot of ρ(r) for MWPotential2014 in the equatorial plane")
+    plt.xlabel("r (kpc)")
+    plt.ylabel("ρ(r,z=0) ($M_\odot\,{kpc}^{-3}$)")
+
+    plt.savefig(filename)
+    plt.close()
+
+def plot_mw_menc(ro,vo,r=np.logspace(-1,2,500),filename="mw_menc.png"):
+
+    r_galpy = r/ro.value
+
+    menc = np.array([mass(
+    MWPotential2014,
+    R,
+    ro=ro.value,
+    vo=vo.value,
+    use_physical=True,)
+    for R in r_galpy])
+    
+    plt.loglog(r, menc)
+
+    plt.title("Logarithmic plot of $M_{enc}(<r)$ for MWPotential2014")
+    plt.xlabel("r (kpc)")
+    plt.ylabel(r"$M_\mathrm{enc}(<r)\ (M_\odot)$")
+
+    plt.savefig(filename)
+    plt.close()
+
+
 def make_halo_potential(ro,vo):
     # Compute Menc(< r) for MWPotential2014 on a logarithmic grid from 0.1 to 300 kpc
 
@@ -103,8 +218,7 @@ def plot_number_density(orbits, best_M, best_a, filename="number_density.png"):
     plt.legend()
 
     plt.savefig(filename)
-    plt.show()
-
+    plt.close()
 
 def main(n=1000):
     os.environ["OMP_NUM_THREADS"] = "8"
@@ -114,6 +228,10 @@ def main(n=1000):
     R0 = 8.0 * u.kpc
 
     MWPotential2014.turn_physical_on(ro=ro,vo=vo)
+
+    plot_mw_vcirc(R0,ro,vo)
+    plot_mw_density(ro,vo)
+    plot_mw_menc(ro,vo)
 
     halo_potential, best_M, best_a = make_halo_potential(ro,vo)
     orbits = sample_halo(halo_potential,n)
