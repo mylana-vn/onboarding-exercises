@@ -140,6 +140,86 @@ def plot_mw_menc(ro,vo,r=np.logspace(-1,2,500),filename="mw_menc.png"):
     plt.savefig(filename)
     plt.close()
 
+def integrate_orbit(ro,vo,orbit,ts=np.linspace(0.0,5.0,10000) * u.Gyr,method="symplec4_c"):
+    orbit.turn_physical_on(ro=ro, vo=vo)
+    orbit.integrate(ts,MWPotential2014,method=method)
+
+def plot_orbits(orbit,filename1="sun_orbit_Rz.png",filename2="sun_orbit_xy.png"):
+    orbit.plot(d1="R",d2="z")
+    plt.title("Sun-like Orbit in the meridional plane, 5Gyr")
+    plt.savefig(filename1)
+    plt.close()
+
+    orbit.plot(d1="x",d2="y")
+    plt.title("Sun-like orbit in the (x,y) plane, 5Gyr")
+    plt.savefig(filename2)
+    plt.close()
+
+def find_fractional_errors(orbit,ts=np.linspace(0.0,5.0,10000) * u.Gyr):
+    # find the energy and z angular momentum for all times
+    E = orbit.E(ts, pot=MWPotential2014, use_physical=True)
+    Lz = orbit.Lz(ts, use_physical=True)
+
+    # get the initial energy and angular momentum
+    E0 = E[0]
+    Lz0 = Lz[0]
+
+    # find fractional errors at each time
+    E_error = np.abs((E - E0) / E0)
+    Lz_error = np.abs((Lz - Lz0) / Lz0)
+
+    return E_error, Lz_error
+
+def plot_fractional_errors(E_error, Lz_error, ts = np.linspace(0.0,5.0,10000) * u.Gyr,filename1="fractional_energy_error.png",
+                            filename2="fractional_Lz_error.png"):
+    plt.semilogy(ts, E_error)
+    plt.title("Semilog plot of fractional energy error")
+    plt.xlabel("Time (Gyr)")
+    plt.ylabel("Fractional error")
+    plt.ylim(1e-16,1e-8)
+    plt.savefig(filename1)
+    plt.close()
+
+    plt.semilogy(ts, Lz_error)
+    plt.title("Semilog plot of z angular momentum error")
+    plt.xlabel("Time (Gyr)")
+    plt.ylabel("Fractional error")
+    plt.ylim(1e-16,1e-13)
+    plt.savefig(filename2)
+    plt.close()
+
+def plot_compare_orbits_vT(vT_multiplier_1,vT_multiplier_2, ts = np.linspace(0.0,5.0,10000) * u.Gyr, R=8.0*u.kpc,
+                           vR=-11.1*u.km/u.s,vT=232.24*u.km/u.s,z=0.0208*u.kpc,vz=7.25*u.km/u.s,phi=0.0*u.rad,
+                           filename="sun_orbit_vT"):
+    o_vTplus = Orbit([R,
+                    vR,
+                    vT_multiplier_1 * vT,
+                    z,
+                    vz,
+                    phi])
+
+    o_vTplus.integrate(ts,MWPotential2014)
+
+    o_vTminus = Orbit([R,
+                  vR,
+                  vT_multiplier_2 * vT,
+                  z,
+                  vz,
+                  phi])
+
+    o_vTminus.integrate(ts,MWPotential2014)
+
+    o_vTplus.plot(d1="R", d2="z", overplot=True, label="$v_T$ * "+str(vT_multiplier_1), alpha=0.8)
+    o_vTminus.plot(d1="R", d2="z", overplot=True, label="$v_T$ * "+str(vT_multiplier_2), alpha=0.8)
+    plt.legend()
+    plt.title("Sun-like Orbits in the meridional plane for 5Gyr")
+    plt.xlim(4, 15)
+    plt.ylim(-0.15, 0.15)
+    plt.xlabel("R (kpc)")
+    plt.ylabel("z (kpc)")
+
+    plt.savefig(filename)
+    plt.close()
 
 def make_halo_potential(ro,vo):
     # Compute Menc(< r) for MWPotential2014 on a logarithmic grid from 0.1 to 300 kpc
@@ -232,6 +312,13 @@ def main(n=1000):
     plot_mw_vcirc(R0,ro,vo)
     plot_mw_density(ro,vo)
     plot_mw_menc(ro,vo)
+
+    o_sun = Orbit()
+    integrate_orbit(ro,vo,o_sun)
+    plot_orbits(o_sun)
+    E_error, Lz_error = find_fractional_errors(o_sun)
+    plot_fractional_errors(E_error,Lz_error)
+    plot_compare_orbits_vT(1.2,0.8)
 
     halo_potential, best_M, best_a = make_halo_potential(ro,vo)
     orbits = sample_halo(halo_potential,n)
