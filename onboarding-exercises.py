@@ -26,6 +26,7 @@ import os
 import ctypes
 import time
 
+# Exercise 1
 def plot_mw_vcirc(R0,ro,vo,filename="mw_vcirc.png"):
     # get each component
 
@@ -140,6 +141,7 @@ def plot_mw_menc(ro,vo,r=np.logspace(-1,2,500),filename="mw_menc.png"):
     plt.savefig(filename)
     plt.close()
 
+# Exercise 2
 def integrate_orbit(ro,vo,orbit,ts=np.linspace(0.0,5.0,10000) * u.Gyr,method="symplec4_c"):
     orbit.turn_physical_on(ro=ro, vo=vo)
     orbit.integrate(ts,MWPotential2014,method=method)
@@ -221,10 +223,9 @@ def plot_compare_orbits_vT(vT_multiplier_1,vT_multiplier_2, ts = np.linspace(0.0
     plt.savefig(filename)
     plt.close()
 
-def make_halo_potential(ro,vo):
+# Exercise 3 
+def make_halo_potential(ro,vo,r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc):
     # Compute Menc(< r) for MWPotential2014 on a logarithmic grid from 0.1 to 300 kpc
-
-    r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc
 
     menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True) for r in r_grid])
     # Find the best-fit (M,a)
@@ -250,8 +251,81 @@ def make_halo_potential(ro,vo):
     best_M = 10**best_fit.x[0]
     best_a = 10**best_fit.x[1]
 
-    return HernquistPotential(amp=best_M, a=best_a), best_M, best_a
+    return HernquistPotential(amp=best_M * u.Msun, a=best_a * u.kpc), best_M, best_a
 
+def make_two_component_halo_potential(ro, vo, r_grid=np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc):
+    menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True) for r in r_grid])
+
+    def objective(params):
+        logM_hq, loga_hq, logM_nfw, loga_nfw = params
+
+        # Hernquist (bulge)
+        M_hq = 10**logM_hq * u.Msun
+        a_hq = 10**loga_hq * u.kpc
+        hq = HernquistPotential(amp=M_hq,a=a_hq)
+        menc_hq = mass(hq, r_grid)
+
+        # NFW (Halo)
+        M_nfw = 10**logM_nfw * u.Msun
+        a_nfw = 10**loga_nfw * u.kpc
+        nfw = NFWPotential(amp=M_nfw,a=a_nfw)
+        menc_nfw = mass(nfw,r_grid)
+
+        menc_total = menc_hq + menc_nfw
+
+        return np.sum((np.log10(menc_total) - np.log10(menc_MW))**2)
+
+    guess = [12.0, 1.0, 12.5, 1.2]
+
+    best_fit = minimize(objective, guess, bounds=[(10, 12), (0, 1),  
+                                                (11, 13), (1, 2.5)]) 
+
+    best_M_hq = 10**best_fit.x[0]
+    best_a_hq = 10**best_fit.x[1]
+    best_M_nfw = 10**best_fit.x[2]
+    best_a_nfw = 10**best_fit.x[3]
+
+    hq_component = HernquistPotential(amp=best_M_hq * u.Msun, a=best_a_hq * u.kpc)
+    nfw_component = NFWPotential(amp=best_M_nfw * u.Msun, a=best_a_nfw * u.kpc)
+
+    return hq_component + nfw_component, best_M_hq, best_a_hq, best_M_nfw, best_a_nfw
+
+def plot_residual(pot, ro, vo, r_grid=np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc, filename="residual.png"):
+    menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True) for r in r_grid])
+
+    menc_pot = mass(pot,r_grid)
+
+    residual = np.log10(menc_pot) - np.log10(menc_MW)
+
+    plt.plot(r_grid,residual)
+    plt.title("Residual for given Milky Way approximation")
+    plt.xlabel("r (kpc)")
+    plt.ylabel(r"$\Delta \log_{10} M$")
+
+    plt.savefig(filename)
+    plt.close()
+
+def plot_compare_vcirc(halo_potential, two_component_halo_potential, r_grid=np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc, 
+                       filename="vcirc_comparsion.png"):
+    single_vcirc = halo_potential.vcirc(r_grid)
+    combined_vcirc = two_component_halo_potential.vcirc(r_grid)
+
+    plt.plot(r_grid,single_vcirc,label="Single Hernquist")
+    plt.plot(r_grid,combined_vcirc,label="Hernquist and NFW")
+    plt.xlabel("$R$ (kpc)")
+    plt.ylabel("$v_C(R)$ (km/s)")
+    plt.title("Circular velocity of spherical proxies for MWPotential2014")
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def make_interpolated_potential(ro):
+    r_grid_galpy = np.geomspace(0.001, 10000, 101) / ro.value  # kpc -> internal galpy units
+    r_grid_phys = np.geomspace(0.001, 10000, 101) * u.kpc # in kpc
+
+    return interpSphericalPotential(MWPotential2014, r_grid_galpy)
+
+# Exercise 4 
 def sample_halo(pot,N):
     hq_df = isotropicHernquistdf(pot=pot)
     return hq_df.sample(n=N,return_orbit=True)
@@ -309,7 +383,7 @@ def main(n=1000):
 
     MWPotential2014.turn_physical_on(ro=ro,vo=vo)
 
-    plot_mw_vcirc(R0,ro,vo)
+    """plot_mw_vcirc(R0,ro,vo)
     plot_mw_density(ro,vo)
     plot_mw_menc(ro,vo)
 
@@ -318,9 +392,17 @@ def main(n=1000):
     plot_orbits(o_sun)
     E_error, Lz_error = find_fractional_errors(o_sun)
     plot_fractional_errors(E_error,Lz_error)
-    plot_compare_orbits_vT(1.2,0.8)
+    plot_compare_orbits_vT(1.2,0.8)"""
 
     halo_potential, best_M, best_a = make_halo_potential(ro,vo)
+    two_component_halo_potential, best_M_hq, best_a_hq, best_M_nfw, best_a_nfw = make_two_component_halo_potential(ro,vo)
+
+    plot_residual(halo_potential,ro,vo,filename="residual_hernquist.png")
+    plot_residual(two_component_halo_potential,ro,vo,filename="residual_hernquist_nfw.png")
+    plot_compare_vcirc(halo_potential, two_component_halo_potential)
+
+    mw_interp = make_interpolated_potential(ro)
+
     orbits = sample_halo(halo_potential,n)
     plot_number_density(orbits, best_M, best_a)
     
