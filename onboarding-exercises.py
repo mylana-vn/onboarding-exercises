@@ -328,7 +328,7 @@ def make_interpolated_potential(ro):
 # Exercise 4 
 def sample_halo(pot,N):
     hq_df = isotropicHernquistdf(pot=pot)
-    return hq_df.sample(n=N,return_orbit=True)
+    return hq_df, hq_df.sample(n=N,return_orbit=True)
 
 def plot_number_density(orbits, best_M, best_a, filename="number_density.png"):
     # Sample number density
@@ -374,7 +374,72 @@ def plot_number_density(orbits, best_M, best_a, filename="number_density.png"):
     plt.savefig(filename)
     plt.close()
 
-def main(n=1000):
+def plot_velocity_dispersion(hq_df, orbits,filename="velocity_dispersion.png"):
+    r_samples = orbits.r(use_physical=True)
+    N = len(r_samples)
+    r_min, r_max = 0.1, 100.0 
+    bins = np.logspace(np.log10(r_min),np.log10(r_max),50)
+    counts, edges = np.histogram(r_samples, bins=bins)
+
+    r_centres = 0.5*(edges[:-1] + edges[1:])
+    # velocity dispersion σ^2(r) = 1/3(<v^2> - <v>^2), but since it's isotropic <v> = 0
+
+    vx = orbits.vx(use_physical=True)
+    vy = orbits.vy(use_physical=True)
+    vz = orbits.vz(use_physical=True)
+
+    sigma2_sample = np.zeros(len(r_centres))
+    for i, (r_lo, r_hi) in enumerate(zip(edges[:-1], edges[1:])): # get the inner and outer boundary of each bin
+        mask = (r_samples >= r_lo) & (r_samples < r_hi) # make sure each particle is in the bin
+        sigma2_sample[i] = (np.var(vx[mask]) + np.var(vy[mask]) + np.var(vz[mask])) / 3.0
+
+    sigma_sample = np.sqrt(sigma2_sample) # km/s
+
+    # get the analytical velocity dispersion
+    r_fine_kpc = np.logspace(np.log10(r_min),np.log10(r_max),200)
+    r_fine_internal = r_fine_kpc / 8.0
+    sigma_analytic = np.array([hq_df.sigmar(r) for r in r_fine_internal]) 
+
+    plt.title("Velocity-dispersion profile comparison")
+    plt.plot(r_fine_kpc,sigma_analytic, label="Hernquist isotropic prediction")
+    plt.scatter(r_centres,sigma_sample, color="orange", s=15,label="Sample")
+    plt.xlabel("r (kpc)")
+    plt.ylabel("$σ_r(r)$ (km/s)")
+    plt.xscale("log")
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def plot_beta_vdisp_curves(beta1,beta2,orbits,best_M,best_a,filename="v_disp_beta_comparsion.png"):
+    hq_best = HernquistPotential(amp=best_M * u.Msun, a=best_a * u.kpc)
+    r_samples = orbits.r(use_physical=True)
+    r_min, r_max = 0.1, 100.0 
+
+    r_fine_kpc = np.logspace(np.log10(r_min),np.log10(r_max),200)
+    r_fine_internal = r_fine_kpc / 8.0
+
+    hq_beta_neg = constantbetaHernquistdf(pot=hq_best,beta=beta1)
+    sigma_beta_neg = np.array([hq_beta_neg.sigmar(r) for r in r_fine_internal])
+
+    hq_beta_pos = constantbetaHernquistdf(pot=hq_best,beta=beta2)
+    sigma_beta_pos = np.array([hq_beta_pos.sigmar(r) for r in r_fine_internal])
+
+    hq_beta_zero = constantbetaHernquistdf(pot=hq_best,beta=0)
+    sigma_beta_zero = np.array([hq_beta_zero.sigmar(r) for r in r_fine_internal])
+
+    plt.title("Velocity-dispersion profile comparison for constantbetaHernquistdf")
+    plt.xlabel("r (kpc)")
+    plt.ylabel("$σ_r(r)$ (km/s)")
+    plt.xscale("log")
+    plt.plot(r_fine_kpc,sigma_beta_pos,label="β = "+str(beta1))
+    plt.plot(r_fine_kpc,sigma_beta_zero, label = "β = 0")
+    plt.plot(r_fine_kpc,sigma_beta_neg,label="β = "+str(beta2))
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+# Exercise 5
+def main(n=10000):
     os.environ["OMP_NUM_THREADS"] = "8"
     #omp = ctypes.CDLL('vcomp140.dll')
 
@@ -403,8 +468,10 @@ def main(n=1000):
 
     mw_interp = make_interpolated_potential(ro)
 
-    orbits = sample_halo(halo_potential,n)
+    hq_df, orbits = sample_halo(halo_potential,n)
     plot_number_density(orbits, best_M, best_a)
+    plot_velocity_dispersion(hq_df,orbits)
+    plot_beta_vdisp_curves(0.3,-0.3,orbits,best_M,best_a)
     
 
 if __name__ == "__main__":
