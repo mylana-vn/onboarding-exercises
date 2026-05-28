@@ -288,7 +288,7 @@ def make_two_component_halo_potential(ro, vo, r_grid=np.logspace(np.log10(0.1),n
     hq_component = HernquistPotential(amp=best_M_hq * u.Msun, a=best_a_hq * u.kpc)
     nfw_component = NFWPotential(amp=best_M_nfw * u.Msun, a=best_a_nfw * u.kpc)
 
-    return hq_component + nfw_component, best_M_hq, best_a_hq, best_M_nfw, best_a_nfw
+    return hq_component + nfw_component
 
 def plot_residual(pot, ro, vo, r_grid=np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc, filename="residual.png"):
     menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True) for r in r_grid])
@@ -462,6 +462,79 @@ def plot_star_positions(stars,t,filename="star_positions.png"):
     plt.savefig(filename)
     plt.close()
 
+# Exercise 6
+
+def make_lmc_orbit(amp=1.5e11*u.Msun,a=10*u.kpc):
+    lmc = HernquistPotential(amp=amp,a=a)
+    o_lmc = Orbit.from_name("LMC")
+
+    return lmc, o_lmc
+
+def integrate_lmc_backward(hq_df,o_lmc,mw_interp):
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    ts_bckwd = np.linspace(0,-3,200)*u.Gyr
+    o_lmc.integrate(ts_bckwd,[mw_interp,friction],method="dop853_c")
+
+def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
+    o_lmc.plot(d1='t',d2='r')
+    plt.title("LMC galactocentric distance vs. time")
+    plt.savefig(filename)
+    plt.close()
+
+def integrate_lmc_forward(o_lmc,lmc,mw_interp):
+    lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
+    ts_fwd = np.linspace(-3.,0,200) * u.Gyr
+    o_lmc.integrate(ts_fwd,[mw_interp,lmc_moving],method="dop853_c")
+    return lmc_moving
+
+def plot_unperturbed_star_positions(ro,vo,hq_df,N,mw_interp,filename="stars_unperturbed.png"):
+    r_grid_galpy = np.geomspace(0.001, 10000, 101) / ro.value
+
+    np.random.seed(0)
+    stars_unperturbed = hq_df.sample(n=N)
+    mask = (stars_unperturbed.r(use_physical=False) > r_grid_galpy.min()) & \
+        (stars_unperturbed.r(use_physical=False) < r_grid_galpy.max())
+    stars_unperturbed = stars_unperturbed[mask]
+    stars_unperturbed.turn_physical_on(ro=ro, vo=vo)
+
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+    stars_unperturbed.integrate(ts_fwd, mw_interp, method="dop853_c")
+
+    plt.scatter(stars_unperturbed.x(ts_fwd[-1]), stars_unperturbed.y(ts_fwd[-1]), s=2)
+    plt.title("N="+str(N)+" halo star sample, Milky Way only")
+    plt.xlabel("x (kpc)")
+    plt.ylabel("y (kpc)")
+    plt.xlim(-500,500)
+    plt.ylim(-500,500)
+    plt.savefig(filename)
+    plt.close()
+
+def plot_perturbed_star_positions(ro,vo,hq_df,N,mw_interp,lmc_moving,filename="stars_perturbed_moving_lmc.png"):
+    r_grid_galpy = np.geomspace(0.001, 10000, 101) / ro.value
+
+    np.random.seed(0)
+    stars_perturbed = hq_df.sample(n=N)
+    mask = (stars_perturbed.r(use_physical=False) > r_grid_galpy.min()) & \
+       (stars_perturbed.r(use_physical=False) < r_grid_galpy.max())
+    stars_perturbed = stars_perturbed[mask]
+    stars_perturbed.turn_physical_on(ro=ro, vo=vo)
+
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+    stars_perturbed.integrate(ts_fwd, [mw_interp, lmc_moving])
+
+    plt.scatter(stars_perturbed.x(ts_fwd[-1]), stars_perturbed.y(ts_fwd[-1]), s=2)
+    plt.title("N="+str(N)+" halo star sample, Milky Way + moving LMC")
+    plt.xlabel("x (kpc)")
+    plt.ylabel("y (kpc)")
+    plt.xlim(-500,500)
+    plt.ylim(-500,500)
+    plt.savefig(filename)
+    plt.close()
+
+
+# Exercise 7
+
+
 def main(n=10000):
     os.environ["OMP_NUM_THREADS"] = "8"
     #omp = ctypes.CDLL('vcomp140.dll')
@@ -481,9 +554,9 @@ def main(n=10000):
     E_error, Lz_error = find_fractional_errors(o_sun)
     plot_fractional_errors(E_error,Lz_error)
     plot_compare_orbits_vT(1.2,0.8)"""
-
+    
     halo_potential, best_M, best_a = make_halo_potential(ro,vo)
-    two_component_halo_potential, best_M_hq, best_a_hq, best_M_nfw, best_a_nfw = make_two_component_halo_potential(ro,vo)
+    two_component_halo_potential = make_two_component_halo_potential(ro,vo)
 
     plot_residual(halo_potential,ro,vo,filename="residual_hernquist.png")
     plot_residual(two_component_halo_potential,ro,vo,filename="residual_hernquist_nfw.png")
@@ -500,6 +573,13 @@ def main(n=10000):
     stars = integrate_halo_sample_mw(hq_df,mw_interp,ro,vo,n)
     plot_star_positions(stars,0.0*u.Gyr,filename="inital_star_positions.png")
     plot_star_positions(stars,4.0*u.Gyr,filename="final_star_positions.png")
+    
+    lmc, o_lmc = make_lmc_orbit()
+    integrate_lmc_backward(hq_df,o_lmc,mw_interp)
+    plot_galactocentric_distance(o_lmc)
+    lmc_moving = integrate_lmc_forward(o_lmc,lmc,mw_interp)
+    plot_unperturbed_star_positions(ro,vo,hq_df,n,mw_interp)
+    plot_perturbed_star_positions(ro,vo,hq_df,n,mw_interp,lmc_moving)
 
 if __name__ == "__main__":
     main()
