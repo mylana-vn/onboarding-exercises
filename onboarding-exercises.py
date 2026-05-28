@@ -439,6 +439,29 @@ def plot_beta_vdisp_curves(beta1,beta2,orbits,best_M,best_a,filename="v_disp_bet
     plt.close()
 
 # Exercise 5
+
+def integrate_halo_sample_mw(hq_df,mw_interp,ro,vo,N):
+    np.random.seed(0)
+    stars = hq_df.sample(n=N)
+    stars.turn_physical_on(ro=ro, vo=vo)
+    r_stars = stars.r(use_physical=True)
+    mask = (r_stars > 0.001) & (r_stars < 10000.)
+    stars = stars[mask]
+    ts = np.linspace(0., 4., 1000) * u.Gyr
+    stars.integrate(ts, mw_interp, method="dop853_c")
+
+    return stars
+
+def plot_star_positions(stars,t,filename="star_positions.png"):
+    plt.scatter(stars.x(t, use_physical=True),stars.y(0.0*u.Gyr, use_physical=True),s=3)
+    plt.xlabel("x (kpc)")
+    plt.ylabel("y (kpc)")
+    plt.xlim(-2500,3500)
+    plt.ylim(-4000,4500)
+    plt.title("Initial positions of star samples (t = "+str(t)+")")
+    plt.savefig(filename)
+    plt.close()
+
 def main(n=10000):
     os.environ["OMP_NUM_THREADS"] = "8"
     #omp = ctypes.CDLL('vcomp140.dll')
@@ -469,10 +492,14 @@ def main(n=10000):
     mw_interp = make_interpolated_potential(ro)
 
     hq_df, orbits = sample_halo(halo_potential,n)
+
     plot_number_density(orbits, best_M, best_a)
     plot_velocity_dispersion(hq_df,orbits)
     plot_beta_vdisp_curves(0.3,-0.3,orbits,best_M,best_a)
-    
+
+    stars = integrate_halo_sample_mw(hq_df,mw_interp,ro,vo,n)
+    plot_star_positions(stars,0.0*u.Gyr,filename="inital_star_positions.png")
+    plot_star_positions(stars,4.0*u.Gyr,filename="final_star_positions.png")
 
 if __name__ == "__main__":
     main()
