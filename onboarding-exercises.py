@@ -531,11 +531,62 @@ def plot_perturbed_star_positions(ro,vo,hq_df,N,mw_interp,lmc_moving,filename="s
     plt.savefig(filename)
     plt.close()
 
-
 # Exercise 7
+def tabulate_inertial_acceleration(o_lmc,lmc_moving):
+    loc_origin = 1e-4
 
+    t_galpy = o_lmc.time(use_physical=False)
 
-def main(n=10000):
+    ax = np.array([evaluateRforces(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy])
+    ay = np.array([evaluatephitorques(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy]) / loc_origin
+    az = np.array([evaluatezforces(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy])
+
+    return ax, ay, az
+
+def plot_inertial_acceleration(o_lmc,ax,ay,az,filename="inertial_acceleration.png"):
+    t_galpy = o_lmc.time(use_physical=False)
+    plt.plot(t_galpy, ax, label="$a_{MW,x}(t)$")
+    plt.plot(t_galpy, ay, label="$a_{MW,y}(t)$")
+    plt.plot(t_galpy, az, label="$a_{MW,z}(t)$")
+    plt.xlabel("t (internal units)")
+    plt.ylabel("acceleration (internal units)")
+    plt.title("LMC's gravitational acceleration at the MW centre")
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def make_nif(ro,vo,o_lmc,ax,ay,az):
+    ts_fwd = np.linspace(-3.,0,200) * u.Gyr
+    t_galpy = o_lmc.time(use_physical=False)
+    time_unit = conversion.time_in_Gyr(vo=vo.value, ro=ro.value)
+
+    ts_fwd_galpy = ts_fwd.value / time_unit  # convert Gyr -> galpy units
+
+    ax_int = lambda t: np.interp(t,t_galpy,ax)
+    ay_int = lambda t: np.interp(t,t_galpy,ay)
+    az_int = lambda t: np.interp(t,t_galpy,az)
+
+    return NonInertialFrameForce(a0=[ax_int,ay_int,az_int]), ts_fwd_galpy
+
+def plot_full_halo_response(ro,vo,hq_df,mw_interp,lmc_moving,nif,N,ts_fwd_galpy,filename="full_halo_response.png"):
+    np.random.seed(0)
+    ts_fwd = np.linspace(-3.,0,200) * u.Gyr
+    stars_nif = hq_df.sample(n=N)
+    r_nif = stars_nif.r(use_physical=True)
+    mask_nif = (r_nif > 0.001) & (r_nif < 10000.0)
+    stars_nif = stars_nif[mask_nif]
+    stars_nif.turn_physical_on(ro=ro, vo=vo)
+
+    stars_nif.integrate(ts_fwd_galpy, [mw_interp, lmc_moving, nif], method="dop853_c")
+
+    plt.scatter(stars_nif.x(ts_fwd[-1]), stars_nif.y(ts_fwd[-1]), s=2)
+    plt.title("N="+str(N)+" halo star sample, Milky Way + moving LMC + Noninertial frame force")
+    plt.xlabel("x (kpc)")
+    plt.ylabel("y (kpc)")
+    plt.savefig(filename)
+    plt.close()
+
+def main(n=100000):
     os.environ["OMP_NUM_THREADS"] = "8"
     #omp = ctypes.CDLL('vcomp140.dll')
 
@@ -570,16 +621,21 @@ def main(n=10000):
     plot_velocity_dispersion(hq_df,orbits)
     plot_beta_vdisp_curves(0.3,-0.3,orbits,best_M,best_a)
 
-    stars = integrate_halo_sample_mw(hq_df,mw_interp,ro,vo,n)
+    """stars = integrate_halo_sample_mw(hq_df,mw_interp,ro,vo,n)
     plot_star_positions(stars,0.0*u.Gyr,filename="inital_star_positions.png")
     plot_star_positions(stars,4.0*u.Gyr,filename="final_star_positions.png")
     
     lmc, o_lmc = make_lmc_orbit()
     integrate_lmc_backward(hq_df,o_lmc,mw_interp)
     plot_galactocentric_distance(o_lmc)
-    lmc_moving = integrate_lmc_forward(o_lmc,lmc,mw_interp)
+    lmc_moving = integrate_lmc_forward(o_lmc,lmc,mw_interp)"""
+    """
     plot_unperturbed_star_positions(ro,vo,hq_df,n,mw_interp)
     plot_perturbed_star_positions(ro,vo,hq_df,n,mw_interp,lmc_moving)
-
+    """
+    """ax, ay, az = tabulate_inertial_acceleration(o_lmc,lmc_moving)
+    plot_inertial_acceleration(o_lmc,ax,ay,az)
+    nif, ts_fwd_galpy = make_nif(ro,vo,o_lmc,ax,ay,az)
+    plot_full_halo_response(ro,vo,hq_df,mw_interp,lmc_moving,nif,n,ts_fwd_galpy)"""
 if __name__ == "__main__":
     main()
