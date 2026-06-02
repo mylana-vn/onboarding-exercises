@@ -1,3 +1,9 @@
+import os
+os.environ["OMP_NUM_THREADS"] = "8"
+import ctypes
+gomp = ctypes.CDLL("libgomp.so.1")
+gomp.omp_set_num_threads(8)
+
 import matplotlib.pyplot as plt
 import numpy as np
 from galpy.util import conversion
@@ -22,8 +28,6 @@ from galpy.df import (
     isotropicHernquistdf,
     constantbetaHernquistdf)
 from scipy.optimize import minimize
-import os
-import ctypes
 import time
 
 # Exercise 1
@@ -115,7 +119,7 @@ def plot_mw_density(ro,vo,r=np.logspace(-1,2,500),filename="mw_density.png"):
 
     plt.title("Logarithmic plot of ρ(r) for MWPotential2014 in the equatorial plane")
     plt.xlabel("r (kpc)")
-    plt.ylabel("ρ(r,z=0) ($M_\odot\,{kpc}^{-3}$)")
+    plt.ylabel("ρ(r,z=0) ($M_{sun},{kpc}^{-3}$)")
 
     plt.savefig(filename)
     plt.close()
@@ -483,7 +487,7 @@ def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
 
 def integrate_lmc_forward(o_lmc,lmc,mw_interp):
     lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
-    ts_fwd = np.linspace(-3.,0,200) * u.Gyr
+    ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
     o_lmc.integrate(ts_fwd,[mw_interp,lmc_moving],method="dop853_c")
     return lmc_moving
 
@@ -532,17 +536,6 @@ def plot_perturbed_star_positions(ro,vo,hq_df,N,mw_interp,lmc_moving,filename="s
     plt.close()
 
 # Exercise 7
-def tabulate_inertial_acceleration(o_lmc,lmc_moving):
-    loc_origin = 1e-4
-
-    t_galpy = o_lmc.time(use_physical=False)
-
-    ax = np.array([evaluateRforces(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy])
-    ay = np.array([evaluatephitorques(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy]) / loc_origin
-    az = np.array([evaluatezforces(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy])
-
-    return ax, ay, az
-
 def plot_inertial_acceleration(o_lmc,ax,ay,az,filename="inertial_acceleration.png"):
     t_galpy = o_lmc.time(use_physical=False)
     plt.plot(t_galpy, ax, label="$a_{MW,x}(t)$")
@@ -555,87 +548,369 @@ def plot_inertial_acceleration(o_lmc,ax,ay,az,filename="inertial_acceleration.pn
     plt.savefig(filename)
     plt.close()
 
-def make_nif(ro,vo,o_lmc,ax,ay,az):
-    ts_fwd = np.linspace(-3.,0,200) * u.Gyr
-    t_galpy = o_lmc.time(use_physical=False)
-    time_unit = conversion.time_in_Gyr(vo=vo.value, ro=ro.value)
-
-    ts_fwd_galpy = ts_fwd.value / time_unit  # convert Gyr -> galpy units
-
-    ax_int = lambda t: np.interp(t,t_galpy,ax)
-    ay_int = lambda t: np.interp(t,t_galpy,ay)
-    az_int = lambda t: np.interp(t,t_galpy,az)
-
-    return NonInertialFrameForce(a0=[ax_int,ay_int,az_int]), ts_fwd_galpy
-
-def plot_full_halo_response(ro,vo,hq_df,mw_interp,lmc_moving,nif,N,ts_fwd_galpy,filename="full_halo_response.png"):
-    np.random.seed(0)
-    ts_fwd = np.linspace(-3.,0,200) * u.Gyr
-    stars_nif = hq_df.sample(n=N)
-    r_nif = stars_nif.r(use_physical=True)
-    mask_nif = (r_nif > 0.001) & (r_nif < 10000.0)
-    stars_nif = stars_nif[mask_nif]
-    stars_nif.turn_physical_on(ro=ro, vo=vo)
-
-    stars_nif.integrate(ts_fwd_galpy, [mw_interp, lmc_moving, nif], method="dop853_c")
-
+def plot_full_halo_response(stars_nif,ts_fwd,N_large,filename="full_halo_response.png"):
     plt.scatter(stars_nif.x(ts_fwd[-1]), stars_nif.y(ts_fwd[-1]), s=2)
-    plt.title("N="+str(N)+" halo star sample, Milky Way + moving LMC + Noninertial frame force")
+    plt.title("N="+str(N_large)+" halo star sample, Milky Way + moving LMC + Noninertial frame force")
     plt.xlabel("x (kpc)")
     plt.ylabel("y (kpc)")
+    plt.xlim(-500,500)
+    plt.ylim(-500,500)
     plt.savefig(filename)
     plt.close()
 
-def main(n=100000):
-    os.environ["OMP_NUM_THREADS"] = "8"
-    #omp = ctypes.CDLL('vcomp140.dll')
+def integrate_mw(ro,vo,hq_df,mw_interp,N):
+    np.random.seed(0)
+    stars_mw = hq_df.sample(n=N)
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+    r_mw = stars_mw.r(use_physical=True)
+    mask_mw = (r_mw>0.001) & (r_mw<10000.)
+    stars_mw = stars_mw[mask_mw]
+    stars_mw.turn_physical_on(ro=ro,vo=vo)
+    stars_mw.integrate(ts_fwd,mw_interp,method="dop853_c")
+    return stars_mw
+
+def integrate_full(ro,vo,hq_df,mw_interp,lmc_moving,nif,N):
+    np.random.seed(0)
+    stars_full = hq_df.sample(n=N)
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+    r_full = stars_full.r(use_physical=True)
+    stars_full = stars_full[(r_full>0.001) & (r_full<10000)]
+    stars_full.turn_physical_on(ro=ro,vo=vo)
+    stars_full.integrate(ts_fwd, [mw_interp,lmc_moving,nif], method="dop853_c")
+    return stars_full
+
+def plot_radial_density_comparison(stars_mw,stars_full,r_mw_final,r_full_final,N,filename="radial_density_comparsion_function.png"):
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+    r_full_final = np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)
+
+    bins = np.geomspace(0.1,1000,50)
+    r_centres = 0.5 * (bins[:-1] + bins[1:])
+    volumes = (4.0/3.0) * np.pi * (bins[1:]**3 - bins[:-1]**3)
+
+    counts_mw, edges_mw = np.histogram(r_mw_final,bins=bins) 
+    counts_full, edges_full = np.histogram(r_full_final,bins=bins) 
+
+    n_mw = counts_mw / volumes
+    n_full = counts_full / volumes
+
+    plt.loglog(r_centres[counts_mw > 0], n_mw[counts_mw > 0], label="MW only")
+    plt.loglog(r_centres[counts_full > 0], n_full[counts_full > 0], label="MW + LMC + NIF")
+    plt.xlabel("r (kpc)")
+    plt.ylabel("number density (kpc$^{-3}$)")
+    plt.title("Unperturbed vs perturbed radial density profile, N="+str(N))
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def plot_density_slices(dx,stars_mw,stars_full,ts_fwd,N,filename1="density_slice_mw_function.png",filename2="density_slice_full_function.png"):
+    # Plotting slice of the density in Y-Z at X=0
+
+    x_mw = stars_mw.x(ts_fwd[-1])
+    y_mw = stars_mw.y(ts_fwd[-1])
+    z_mw = stars_mw.z(ts_fwd[-1])
+
+    x_full = stars_full.x(ts_fwd[-1])
+    y_full = stars_full.y(ts_fwd[-1])
+    z_full = stars_full.z(ts_fwd[-1])
+
+    # Density slice in Y-Z, X=0
+    mask_mw_slice = np.abs(x_mw) < dx
+    mask_full_slice = np.abs(x_full) < dx
+
+    bins_yz = np.linspace(-500,500,40)
+
+    plt.hist2d(y_mw[mask_mw_slice], z_mw[mask_mw_slice], bins=bins_yz, cmap="Blues",vmin=0,vmax=30)
+    plt.colorbar(label="star count")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW only, y-z slice at |x| < "+str(dx)+" kpc, N="+str(N))
+
+    plt.savefig(filename1)
+    plt.close()
+
+    plt.hist2d(y_full[mask_full_slice], z_full[mask_full_slice], bins=bins_yz, cmap="Blues",vmin=0,vmax=30)
+    plt.colorbar(label="star count")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW + LMC + NIF, y-z slice at |x| < "+str(dx)+" kpc, N="+str(N))
+    o_lmc_expected = Orbit.from_name("LMC")
+    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(),color='orange', s=100, marker='*', zorder=5, label="LMC")
+    plt.legend()
+
+    plt.savefig(filename2)
+    plt.close()
+
+def get_coords(stars):
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+    x = stars.x(ts_fwd[-1])
+    y = stars.y(ts_fwd[-1])
+    z = stars.z(ts_fwd[-1])
+    return x,y,z
+
+def get_velocities(stars):
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+    vx = stars.vx(ts_fwd[-1])
+    vy = stars.vy(ts_fwd[-1])
+    vz = stars.vz(ts_fwd[-1])
+    return vx,vy,vz
+
+def get_vr_vt(x,y,z,vx,vy,vz):
+        r = np.sqrt(x**2 + y**2 + z**2)
+        vr = (x*vx + y*vy + z*vz) / r
+        v = np.sqrt(vx**2 + vy**2 + vz**2)
+        vt = np.sqrt(np.maximum(v**2 - vr**2,0))
+        return vr, vt
+
+def plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,N,filename="vdisp_comparison_function.png"):
+    bins = np.geomspace(0.1,1000,40)
+    r_centres = 0.5 * (bins[:-1] + bins[1:])
+
+    v_disp_mw = np.zeros(len(r_centres))
+    counts_mw = np.zeros(len(r_centres))
+    v_disp_full = np.zeros(len(r_centres))
+    counts_full = np.zeros(len(r_centres))
+
+    for i, (r_lo, r_hi) in enumerate(zip(bins[:-1], bins[1:])):
+        mask_mw_bin = (r_mw_final >= r_lo) & (r_mw_final < r_hi)
+        mask_full_bin = (r_full_final >= r_lo) & (r_full_final < r_hi)
+
+        counts_mw[i] = mask_mw_bin.sum()
+        counts_full[i] = mask_full_bin.sum()
+
+        if counts_mw[i] > 1:
+            v_disp_mw[i] = np.std(vr_mw[mask_mw_bin])
+
+        if counts_full[i] > 1:
+            v_disp_full[i] = np.std(vr_full[mask_full_bin])
+
+    plt.title("Velocity dispersion profile comparison, N="+str(N))
+    plt.plot(r_centres[counts_mw > 1],v_disp_mw[counts_mw > 1], label="MW only")
+    plt.plot(r_centres[counts_full > 1],v_disp_full[counts_full > 1], color="orange",label="MW+LMC+NIF")
+    plt.xlabel("r (kpc)")
+    plt.ylabel("$σ_r(r)$ (km/s)")
+    plt.xscale("log")
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+    return v_disp_mw, v_disp_full, counts_mw, counts_full
+
+def plot_tangential_disp_comparison(vt_mw,vt_full,r_mw_final,r_full_final,N,filename="tangential_disp_comparison_function.png"):
+    bins = np.geomspace(0.1,1000,40)
+    r_centres = 0.5 * (bins[:-1] + bins[1:])
+
+    vt_disp_mw = np.zeros(len(r_centres))
+    counts_t_mw = np.zeros(len(r_centres))
+    vt_disp_full = np.zeros(len(r_centres))
+    counts_t_full = np.zeros(len(r_centres))
+
+    for i, (r_lo, r_hi) in enumerate(zip(bins[:-1], bins[1:])):
+        mask_mw_bin = (r_mw_final >= r_lo) & (r_mw_final < r_hi)
+        mask_full_bin = (r_full_final >= r_lo) & (r_full_final < r_hi)
+
+        counts_t_mw[i] = mask_mw_bin.sum()
+        counts_t_full[i] = mask_full_bin.sum()
+
+        if counts_t_mw[i] > 1:
+            vt_disp_mw[i] = np.std(vt_mw[mask_mw_bin])
+
+        if counts_t_full[i] > 1:
+            vt_disp_full[i] = np.std(vt_full[mask_full_bin])
+
+    plt.title("Tangential dispersion profile comparison, N="+str(N))
+    plt.plot(r_centres[counts_t_mw > 1],vt_disp_mw[counts_t_mw > 1], label="MW only")
+    plt.plot(r_centres[counts_t_full > 1],vt_disp_full[counts_t_full > 1], color="orange",label="MW+LMC+NIF")
+    plt.xlabel("r (kpc)")
+    plt.ylabel("$σ_t(r)$ (km/s)")
+    plt.xscale("log")
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+    return vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full
+
+def plot_orbital_anisotropy_comparison(v_disp_mw, vt_disp_mw,
+                                       counts_mw, counts_t_mw,
+                                       v_disp_full, vt_disp_full,
+                                       counts_full, counts_t_full,
+                                       N, filename="orbital_anisotropy_comparison_function.png"):
+    bins = np.geomspace(0.1,1000,40)
+    r_centres = 0.5 * (bins[:-1] + bins[1:])
+
+    beta_mw = 1 - ((vt_disp_mw[counts_t_mw > 5])**2 / (2*v_disp_mw[counts_mw > 5])**2)
+    beta_full = 1 - ((vt_disp_full[counts_t_full > 5])**2 / (2*v_disp_full[counts_full > 5])**2)
+
+    plt.semilogx(r_centres[counts_t_mw > 5], beta_mw, label = "MW")
+    plt.semilogx(r_centres[counts_t_full > 5], beta_full, color = "orange", label="MW+LMC+NIF")
+    plt.xlabel("r (kpc)")
+    plt.ylabel("β(r)")
+    plt.ylim(0,1)
+    plt.title("Orbital anisotropy profile comparison, N="+str(N))
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def get_dispersion_slices(dx,x_mw,y_mw,z_mw,vr_mw,vt_mw,x_full,y_full,z_full,vr_full,vt_full):
+
+    mask_mw_slice = np.abs(x_mw) < dx
+    mask_full_slice = np.abs(x_full) < dx
+
+    bins_yz = np.linspace(-500, 500, 50)
+
+    def dispersion_2d(y, z, v, bins):
+        # get bin indices for each star
+        y_idx = np.digitize(y, bins) - 1
+        z_idx = np.digitize(z, bins) - 1
+        n_bins = len(bins) - 1
+        sigma = np.full((n_bins, n_bins), np.nan)
+        
+        for i in range(n_bins):
+            for j in range(n_bins):
+                mask = (y_idx == j) & (z_idx == i)
+                if mask.sum() > 1:
+                    sigma[i, j] = np.std(v[mask])
+        return sigma
+
+    sigma_r_mw_2d = dispersion_2d(y_mw[mask_mw_slice], z_mw[mask_mw_slice], vr_mw[mask_mw_slice], bins_yz)
+    sigma_r_full_2d = dispersion_2d(y_full[mask_full_slice], z_full[mask_full_slice], vr_full[mask_full_slice], bins_yz)
+
+    sigma_t_mw_2d = dispersion_2d(y_mw[mask_mw_slice], z_mw[mask_mw_slice], vt_mw[mask_mw_slice], bins_yz)
+    sigma_t_full_2d = dispersion_2d(y_full[mask_full_slice], z_full[mask_full_slice], vt_full[mask_full_slice], bins_yz)
+
+    beta_mw_2d = 1 - (sigma_t_mw_2d**2 / (2*sigma_r_mw_2d**2))
+    beta_full_2d = 1 - (sigma_t_full_2d**2 / (2*sigma_r_full_2d**2))
+
+    return sigma_r_mw_2d, sigma_r_full_2d, sigma_t_mw_2d, sigma_t_full_2d, beta_mw_2d, beta_full_2d
+
+def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,N,filename1="vdisp_mw_slices_function.png",filename2="vdisp_full_slices_function.png"):
+    bins_yz = np.linspace(-500, 500, 50)
+    o_lmc_expected = Orbit.from_name("LMC")
+
+    plt.pcolormesh(bins_yz, bins_yz, sigma_r_mw_2d, cmap='Blues',vmin=0,vmax=100)
+    plt.colorbar(label="velocity dispersion (km/s)")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW, velocity dispersion at |x| < "+str(dx)+" kpc, N="+str(N))
+    plt.savefig(filename1)
+    plt.close()
+
+    plt.pcolormesh(bins_yz, bins_yz, sigma_r_full_2d, cmap='Blues',vmin=0,vmax=100)
+    plt.colorbar(label="velocity dispersion (km/s)")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW+LMC+NIF, velocity dispersion at |x| < "+str(dx)+" kpc, N="+str(N))
+    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color='orange', s=100, marker='*', zorder=5, label="LMC")
+    plt.legend()
+    plt.savefig(filename2)
+    plt.close()
+
+def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,N,filename1="tdisp_mw_slices_function.png",filename2="tdisp_full_slices.png"):
+    bins_yz = np.linspace(-500, 500, 50)
+    o_lmc_expected = Orbit.from_name("LMC")
+
+    plt.pcolormesh(bins_yz, bins_yz, sigma_t_mw_2d, cmap='Blues',vmin=0,vmax=100)
+    plt.colorbar(label="tangential dispersion (km/s)")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW, tangential dispersion at |x| < "+str(dx)+" kpc, N="+str(N))
+    plt.savefig(filename1)
+    plt.close()
+
+    plt.pcolormesh(bins_yz, bins_yz, sigma_t_full_2d, cmap='Blues',vmin=0,vmax=100)
+    plt.colorbar(label="tangential dispersion (km/s)")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW+LMC+NIF, tangential dispersion at |x| < "+str(dx)+" kpc, N="+str(N))
+    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color='orange', s=100, marker='*', zorder=5, label="LMC")
+    plt.legend()
+    plt.savefig(filename2)
+    plt.close()
+
+def plot_oa_slices(dx, beta_mw_2d, beta_full_2d, N, filename1="oa_mw_slices_function.png", filename2="oa_full_slices_function.png"):
+    bins_yz = np.linspace(-500, 500, 50)
+    o_lmc_expected = Orbit.from_name("LMC")
+
+    plt.pcolormesh(bins_yz, bins_yz, beta_mw_2d, cmap='Blues',vmin=0,vmax=1)
+    plt.colorbar(label="β")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW, orbital anisotropy at |x| < "+str(dx)+" kpc, N="+str(N))
+    plt.savefig(filename1)
+    plt.close()
+
+    plt.pcolormesh(bins_yz, bins_yz, beta_full_2d, cmap='Blues',vmin=0,vmax=1)
+    plt.colorbar(label="β")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.title("MW+LMC+NIF, orbital anisotropy at |x| < "+str(dx)+" kpc, N="+str(N))
+    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color='orange', s=100, marker='*', zorder=5, label="LMC")
+    plt.legend()
+    plt.savefig(filename2)
+    plt.close()
+
+def main(n=10000):
+    gomp = ctypes.CDLL("libgomp.so.1")
+    gomp.omp_set_num_threads(8)
 
     ro, vo = 8.0 * u.kpc, 220.0 * u.km / u.s
     R0 = 8.0 * u.kpc
 
     MWPotential2014.turn_physical_on(ro=ro,vo=vo)
 
-    """plot_mw_vcirc(R0,ro,vo)
-    plot_mw_density(ro,vo)
-    plot_mw_menc(ro,vo)
-
-    o_sun = Orbit()
-    integrate_orbit(ro,vo,o_sun)
-    plot_orbits(o_sun)
-    E_error, Lz_error = find_fractional_errors(o_sun)
-    plot_fractional_errors(E_error,Lz_error)
-    plot_compare_orbits_vT(1.2,0.8)"""
-    
     halo_potential, best_M, best_a = make_halo_potential(ro,vo)
-    two_component_halo_potential = make_two_component_halo_potential(ro,vo)
-
-    plot_residual(halo_potential,ro,vo,filename="residual_hernquist.png")
-    plot_residual(two_component_halo_potential,ro,vo,filename="residual_hernquist_nfw.png")
-    plot_compare_vcirc(halo_potential, two_component_halo_potential)
 
     mw_interp = make_interpolated_potential(ro)
 
     hq_df, orbits = sample_halo(halo_potential,n)
-
-    plot_number_density(orbits, best_M, best_a)
-    plot_velocity_dispersion(hq_df,orbits)
-    plot_beta_vdisp_curves(0.3,-0.3,orbits,best_M,best_a)
-
-    """stars = integrate_halo_sample_mw(hq_df,mw_interp,ro,vo,n)
-    plot_star_positions(stars,0.0*u.Gyr,filename="inital_star_positions.png")
-    plot_star_positions(stars,4.0*u.Gyr,filename="final_star_positions.png")
     
     lmc, o_lmc = make_lmc_orbit()
     integrate_lmc_backward(hq_df,o_lmc,mw_interp)
     plot_galactocentric_distance(o_lmc)
-    lmc_moving = integrate_lmc_forward(o_lmc,lmc,mw_interp)"""
-    """
-    plot_unperturbed_star_positions(ro,vo,hq_df,n,mw_interp)
-    plot_perturbed_star_positions(ro,vo,hq_df,n,mw_interp,lmc_moving)
-    """
-    """ax, ay, az = tabulate_inertial_acceleration(o_lmc,lmc_moving)
-    plot_inertial_acceleration(o_lmc,ax,ay,az)
-    nif, ts_fwd_galpy = make_nif(ro,vo,o_lmc,ax,ay,az)
-    plot_full_halo_response(ro,vo,hq_df,mw_interp,lmc_moving,nif,n,ts_fwd_galpy)"""
+    lmc_moving = integrate_lmc_forward(o_lmc,lmc,mw_interp)
+
+    loc_origin = 1e-4
+    
+    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
+
+    t_galpy = o_lmc.time(use_physical=False)
+
+    ax = np.array([evaluateRforces(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy])
+    ay = np.array([evaluatephitorques(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy]) / loc_origin
+    az = np.array([evaluatezforces(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy])
+
+    time_unit = conversion.time_in_Gyr(vo=vo.value, ro=ro.value)
+    ts_fwd_galpy = ts_fwd.value / time_unit  # convert Gyr -> galpy units
+
+    ax_int = lambda t: np.interp(t,t_galpy,ax)
+    ay_int = lambda t: np.interp(t,t_galpy,ay)
+    az_int = lambda t: np.interp(t,t_galpy,az)
+
+    nif = NonInertialFrameForce(a0=[ax_int,ay_int,az_int])
+
+    stars_mw = integrate_mw(ro,vo,hq_df,mw_interp,n)
+    r_mw_final = np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)
+    x_mw, y_mw, z_mw = get_coords(stars_mw)
+    vx_mw, vy_mw, vz_mw = get_velocities(stars_mw)
+    vr_mw, vt_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
+
+    stars_full = integrate_full(ro,vo,hq_df,mw_interp,lmc_moving,nif,n)
+    r_full_final = np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)
+    x_full,y_full,z_full = get_coords(stars_full)
+    vx_full, vy_full, vz_full = get_velocities(stars_full)
+    vr_full, vt_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
+
+    plot_radial_density_comparison(stars_mw,stars_full,r_mw_final,r_full_final,n)
+    plot_density_slices(20,stars_mw,stars_full,ts_fwd,n,filename1="density_slice_nw_function2.png",filename2="density_slice_full_function2.png")
+    v_disp_mw, v_disp_full, counts_mw, counts_full = plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,n)
+    vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full = plot_tangential_disp_comparison(vt_mw,vt_full,r_mw_final,r_full_final,n)
+    plot_orbital_anisotropy_comparison(v_disp_mw,vt_disp_mw,counts_mw,counts_t_mw,v_disp_full,vt_disp_full,counts_full,counts_t_full,n)
+
+    sigma_r_mw_2d, sigma_r_full_2d, sigma_t_mw_2d, sigma_t_full_2d, beta_mw_2d, beta_full_2d = \
+          get_dispersion_slices(20,x_mw,y_mw,z_mw,vr_mw,vt_mw,x_full,y_full,z_full,vr_full,vt_full)
+
+    plot_vdisp_slices(20,sigma_r_mw_2d,sigma_r_full_2d,n)
+    plot_tdisp_slices(20,sigma_t_mw_2d,sigma_t_full_2d,n)
+    plot_oa_slices(20,beta_mw_2d,beta_full_2d,n)
+
 if __name__ == "__main__":
     main()
