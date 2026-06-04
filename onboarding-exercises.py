@@ -579,9 +579,7 @@ def integrate_full(ro,vo,hq_df,mw_interp,lmc_moving,nif,N):
     stars_full.integrate(ts_fwd, [mw_interp,lmc_moving,nif], method="dop853_c")
     return stars_full
 
-def plot_radial_density_comparison(stars_mw,stars_full,r_mw_final,r_full_final,N,filename="radial_density_comparsion_function.png"):
-    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
-    r_full_final = np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)
+def plot_radial_density_comparison(r_mw_final,r_full_final,N,filename="radial_density_comparsion_function.png"):
 
     bins = np.geomspace(0.1,1000,50)
     r_centres = 0.5 * (bins[:-1] + bins[1:])
@@ -619,8 +617,17 @@ def plot_density_slices(dx,stars_mw,stars_full,ts_fwd,N,filename1="density_slice
 
     bins_yz = np.linspace(-500,500,40)
 
-    plt.hist2d(y_mw[mask_mw_slice], z_mw[mask_mw_slice], bins=bins_yz, cmap="Blues",vmin=0,vmax=30)
-    plt.colorbar(label="star count")
+    counts_mw, y_edges_mw, z_edges_mw = np.histogram2d(y_mw[mask_mw_slice],z_mw[mask_mw_slice],bins=bins_yz)
+    counts_full, y_edges_full, z_edges_full = np.histogram2d(y_full[mask_full_slice],z_full[mask_full_slice],bins=bins_yz)
+
+    log_counts_mw = np.where(counts_mw>0, np.log10(counts_mw),np.nan)
+    log_counts_full = np.where(counts_full>0, np.log10(counts_full),np.nan)
+
+    vmin = np.nanmin([log_counts_mw,log_counts_full])
+    vmax = np.nanmax([log_counts_mw,log_counts_full])
+
+    plt.pcolormesh(y_edges_mw, z_edges_mw, log_counts_mw.T, cmap="Blues",vmin=vmin,vmax=vmax)
+    plt.colorbar(label="star count (log)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
     plt.title("MW only, y-z slice at |x| < "+str(dx)+" kpc, N="+str(N))
@@ -628,8 +635,8 @@ def plot_density_slices(dx,stars_mw,stars_full,ts_fwd,N,filename1="density_slice
     plt.savefig(filename1)
     plt.close()
 
-    plt.hist2d(y_full[mask_full_slice], z_full[mask_full_slice], bins=bins_yz, cmap="Blues",vmin=0,vmax=30)
-    plt.colorbar(label="star count")
+    plt.pcolormesh(y_edges_full, z_edges_full, log_counts_full.T, cmap="Blues",vmin=vmin,vmax=vmax)
+    plt.colorbar(label="star count (log)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
     plt.title("MW + LMC + NIF, y-z slice at |x| < "+str(dx)+" kpc, N="+str(N))
@@ -657,12 +664,14 @@ def get_velocities(stars):
 def get_vr_vt(x,y,z,vx,vy,vz):
         r = np.sqrt(x**2 + y**2 + z**2)
         vr = (x*vx + y*vy + z*vz) / r
-        v = np.sqrt(vx**2 + vy**2 + vz**2)
-        vt = np.sqrt(np.maximum(v**2 - vr**2,0))
-        return vr, vt
+        r_unit_x, r_unit_y, r_unit_z = x/r, y/r, z/r
+        vt_x = vx - vr*r_unit_x
+        vt_y = vy - vr*r_unit_y
+        vt_z = vz - vr*r_unit_z
+        return vr, vt_x, vt_y, vt_z
 
 def plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,N,filename="vdisp_comparison_function.png"):
-    bins = np.geomspace(0.1,1000,40)
+    bins = np.geomspace(0.1,1000,15)
     r_centres = 0.5 * (bins[:-1] + bins[1:])
 
     v_disp_mw = np.zeros(len(r_centres))
@@ -695,8 +704,8 @@ def plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,N,filena
 
     return v_disp_mw, v_disp_full, counts_mw, counts_full
 
-def plot_tangential_disp_comparison(vt_mw,vt_full,r_mw_final,r_full_final,N,filename="tangential_disp_comparison_function.png"):
-    bins = np.geomspace(0.1,1000,40)
+def plot_tangential_disp_comparison(vt_x_mw,vt_y_mw,vt_z_mw,vt_x_full,vt_y_full,vt_z_full,r_mw_final,r_full_final,N,filename="tangential_disp_comparison_function.png"):
+    bins = np.geomspace(0.1,1000,15)
     r_centres = 0.5 * (bins[:-1] + bins[1:])
 
     vt_disp_mw = np.zeros(len(r_centres))
@@ -712,10 +721,12 @@ def plot_tangential_disp_comparison(vt_mw,vt_full,r_mw_final,r_full_final,N,file
         counts_t_full[i] = mask_full_bin.sum()
 
         if counts_t_mw[i] > 1:
-            vt_disp_mw[i] = np.std(vt_mw[mask_mw_bin])
+            sigma_t2 = np.var(vt_x_mw[mask_mw_bin]) + np.var(vt_y_mw[mask_mw_bin]) + np.var(vt_z_mw[mask_mw_bin])
+            vt_disp_mw[i] = np.sqrt(sigma_t2)
 
         if counts_t_full[i] > 1:
-            vt_disp_full[i] = np.std(vt_full[mask_full_bin])
+            sigma_t2 = np.var(vt_x_full[mask_full_bin]) + np.var(vt_y_full[mask_full_bin]) + np.var(vt_z_full[mask_full_bin])
+            vt_disp_full[i] = np.sqrt(sigma_t2)
 
     plt.title("Tangential dispersion profile comparison, N="+str(N))
     plt.plot(r_centres[counts_t_mw > 1],vt_disp_mw[counts_t_mw > 1], label="MW only")
@@ -734,17 +745,17 @@ def plot_orbital_anisotropy_comparison(v_disp_mw, vt_disp_mw,
                                        v_disp_full, vt_disp_full,
                                        counts_full, counts_t_full,
                                        N, filename="orbital_anisotropy_comparison_function.png"):
-    bins = np.geomspace(0.1,1000,40)
+    bins = np.geomspace(0.1,1000,15)
     r_centres = 0.5 * (bins[:-1] + bins[1:])
 
-    beta_mw = 1 - ((vt_disp_mw[counts_t_mw > 5])**2 / (2*v_disp_mw[counts_mw > 5])**2)
-    beta_full = 1 - ((vt_disp_full[counts_t_full > 5])**2 / (2*v_disp_full[counts_full > 5])**2)
+    beta_mw = 1 - (vt_disp_mw[counts_t_mw > 5]**2 / (2 * v_disp_mw[counts_mw > 5]**2))
+    beta_full = 1 - (vt_disp_full[counts_t_full > 5]**2 / (2 * v_disp_full[counts_full > 5]**2))
 
     plt.semilogx(r_centres[counts_t_mw > 5], beta_mw, label = "MW")
     plt.semilogx(r_centres[counts_t_full > 5], beta_full, color = "orange", label="MW+LMC+NIF")
     plt.xlabel("r (kpc)")
     plt.ylabel("β(r)")
-    plt.ylim(0,1)
+    plt.ylim(-0.5,1)
     plt.title("Orbital anisotropy profile comparison, N="+str(N))
     plt.legend()
     plt.savefig(filename)
@@ -755,7 +766,7 @@ def get_dispersion_slices(dx,x_mw,y_mw,z_mw,vr_mw,vt_mw,x_full,y_full,z_full,vr_
     mask_mw_slice = np.abs(x_mw) < dx
     mask_full_slice = np.abs(x_full) < dx
 
-    bins_yz = np.linspace(-500, 500, 50)
+    bins_yz = np.linspace(-500, 500, 40)
 
     def dispersion_2d(y, z, v, bins):
         # get bin indices for each star
@@ -777,16 +788,22 @@ def get_dispersion_slices(dx,x_mw,y_mw,z_mw,vr_mw,vt_mw,x_full,y_full,z_full,vr_
     sigma_t_mw_2d = dispersion_2d(y_mw[mask_mw_slice], z_mw[mask_mw_slice], vt_mw[mask_mw_slice], bins_yz)
     sigma_t_full_2d = dispersion_2d(y_full[mask_full_slice], z_full[mask_full_slice], vt_full[mask_full_slice], bins_yz)
 
-    beta_mw_2d = 1 - (sigma_t_mw_2d**2 / (2*sigma_r_mw_2d**2))
-    beta_full_2d = 1 - (sigma_t_full_2d**2 / (2*sigma_r_full_2d**2))
+    beta_mw_2d = 1 - (sigma_t_mw_2d**2 / (2*(sigma_r_mw_2d**2)))
+    beta_full_2d = 1 - (sigma_t_full_2d**2 / (2*(sigma_r_full_2d**2)))
 
     return sigma_r_mw_2d, sigma_r_full_2d, sigma_t_mw_2d, sigma_t_full_2d, beta_mw_2d, beta_full_2d
 
 def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,N,filename1="vdisp_mw_slices_function.png",filename2="vdisp_full_slices_function.png"):
-    bins_yz = np.linspace(-500, 500, 50)
+    bins_yz = np.linspace(-500, 500, 40)
     o_lmc_expected = Orbit.from_name("LMC")
 
-    plt.pcolormesh(bins_yz, bins_yz, sigma_r_mw_2d, cmap='Blues',vmin=0,vmax=100)
+    log_sigma_r_mw_2d = np.where(sigma_r_mw_2d>0,np.log10(sigma_r_mw_2d),np.nan)
+    log_sigma_r_full_2d = np.where(sigma_r_full_2d>0,np.log10(sigma_r_full_2d),np.nan)
+
+    vmin = np.nanmin([log_sigma_r_mw_2d,log_sigma_r_full_2d])
+    vmax = np.nanmax([log_sigma_r_mw_2d,log_sigma_r_full_2d])
+
+    plt.pcolormesh(bins_yz, bins_yz, log_sigma_r_mw_2d, cmap='Blues',vmin=vmin,vmax=vmax)
     plt.colorbar(label="velocity dispersion (km/s)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
@@ -794,7 +811,7 @@ def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,N,filename1="vdisp_mw_sli
     plt.savefig(filename1)
     plt.close()
 
-    plt.pcolormesh(bins_yz, bins_yz, sigma_r_full_2d, cmap='Blues',vmin=0,vmax=100)
+    plt.pcolormesh(bins_yz, bins_yz, log_sigma_r_full_2d, cmap='Blues',vmin=vmin,vmax=vmax)
     plt.colorbar(label="velocity dispersion (km/s)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
@@ -805,19 +822,25 @@ def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,N,filename1="vdisp_mw_sli
     plt.close()
 
 def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,N,filename1="tdisp_mw_slices_function.png",filename2="tdisp_full_slices.png"):
-    bins_yz = np.linspace(-500, 500, 50)
+    bins_yz = np.linspace(-500, 500, 40)
     o_lmc_expected = Orbit.from_name("LMC")
 
-    plt.pcolormesh(bins_yz, bins_yz, sigma_t_mw_2d, cmap='Blues',vmin=0,vmax=100)
-    plt.colorbar(label="tangential dispersion (km/s)")
+    log_sigma_t_mw_2d = np.where(sigma_t_mw_2d>0,np.log10(sigma_t_mw_2d),np.nan)
+    log_sigma_t_full_2d = np.where(sigma_t_full_2d>0,np.log10(sigma_t_full_2d),np.nan)
+
+    vmin = np.nanmin([log_sigma_t_mw_2d,log_sigma_t_full_2d])
+    vmax = np.nanmax([log_sigma_t_mw_2d,log_sigma_t_full_2d])
+
+    plt.pcolormesh(bins_yz, bins_yz, log_sigma_t_mw_2d, cmap='Blues',vmin=vmin,vmax=vmax)
+    plt.colorbar(label="tangential dispersion (log)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
     plt.title("MW, tangential dispersion at |x| < "+str(dx)+" kpc, N="+str(N))
     plt.savefig(filename1)
     plt.close()
 
-    plt.pcolormesh(bins_yz, bins_yz, sigma_t_full_2d, cmap='Blues',vmin=0,vmax=100)
-    plt.colorbar(label="tangential dispersion (km/s)")
+    plt.pcolormesh(bins_yz, bins_yz, log_sigma_t_full_2d, cmap='Blues',vmin=vmin,vmax=vmax)
+    plt.colorbar(label="tangential dispersion (log)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
     plt.title("MW+LMC+NIF, tangential dispersion at |x| < "+str(dx)+" kpc, N="+str(N))
@@ -827,7 +850,7 @@ def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,N,filename1="tdisp_mw_s
     plt.close()
 
 def plot_oa_slices(dx, beta_mw_2d, beta_full_2d, N, filename1="oa_mw_slices_function.png", filename2="oa_full_slices_function.png"):
-    bins_yz = np.linspace(-500, 500, 50)
+    bins_yz = np.linspace(-500, 500, 40)
     o_lmc_expected = Orbit.from_name("LMC")
 
     plt.pcolormesh(bins_yz, bins_yz, beta_mw_2d, cmap='Blues',vmin=0,vmax=1)
@@ -891,19 +914,23 @@ def main(n=10000):
     r_mw_final = np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)
     x_mw, y_mw, z_mw = get_coords(stars_mw)
     vx_mw, vy_mw, vz_mw = get_velocities(stars_mw)
-    vr_mw, vt_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
+    vr_mw, vt_x_mw, vt_y_mw, vt_z_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
 
     stars_full = integrate_full(ro,vo,hq_df,mw_interp,lmc_moving,nif,n)
     r_full_final = np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)
     x_full,y_full,z_full = get_coords(stars_full)
     vx_full, vy_full, vz_full = get_velocities(stars_full)
-    vr_full, vt_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
+    vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
 
-    plot_radial_density_comparison(stars_mw,stars_full,r_mw_final,r_full_final,n)
-    plot_density_slices(20,stars_mw,stars_full,ts_fwd,n,filename1="density_slice_nw_function2.png",filename2="density_slice_full_function2.png")
+    plot_radial_density_comparison(r_mw_final,r_full_final,n)
+    plot_density_slices(20,stars_mw,stars_full,ts_fwd,n)
     v_disp_mw, v_disp_full, counts_mw, counts_full = plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,n)
-    vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full = plot_tangential_disp_comparison(vt_mw,vt_full,r_mw_final,r_full_final,n)
+    vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full = plot_tangential_disp_comparison(vt_x_mw,vt_y_mw,vt_z_mw, \
+        vt_x_full,vt_y_full,vt_z_full,r_mw_final,r_full_final,n)
     plot_orbital_anisotropy_comparison(v_disp_mw,vt_disp_mw,counts_mw,counts_t_mw,v_disp_full,vt_disp_full,counts_full,counts_t_full,n)
+
+    vt_mw = np.sqrt(vt_x_mw**2 + vt_y_mw**2 + vt_z_mw**2)
+    vt_full = np.sqrt(vt_x_full**2 + vt_y_full**2 + vt_z_full**2)
 
     sigma_r_mw_2d, sigma_r_full_2d, sigma_t_mw_2d, sigma_t_full_2d, beta_mw_2d, beta_full_2d = \
           get_dispersion_slices(20,x_mw,y_mw,z_mw,vr_mw,vt_mw,x_full,y_full,z_full,vr_full,vt_full)
