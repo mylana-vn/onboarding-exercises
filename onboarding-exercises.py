@@ -754,8 +754,8 @@ def plot_orbital_anisotropy_comparison(v_disp_mw, vt_disp_mw,
     bins = np.geomspace(0.1,1000,15)
     r_centres = 0.5 * (bins[:-1] + bins[1:])
 
-    beta_mw = 1 - (vt_disp_mw[counts_t_mw > 5]**2 / (2 * v_disp_mw[counts_mw > 5]**2))
-    beta_full = 1 - (vt_disp_full[counts_t_full > 5]**2 / (2 * v_disp_full[counts_full > 5]**2))
+    beta_mw = 1 - (vt_disp_mw[counts_t_mw > 5]**2 / (2 * (v_disp_mw[counts_mw > 5])**2))
+    beta_full = 1 - (vt_disp_full[counts_t_full > 5]**2 / (2 * (v_disp_full[counts_full > 5])**2))
 
     plt.semilogx(r_centres[counts_t_mw > 5], beta_mw, label = "MW")
     plt.semilogx(r_centres[counts_t_full > 5], beta_full, color = "orange", label="MW+LMC+NIF")
@@ -818,10 +818,9 @@ def get_dispersion_slices(dx,x_mw,y_mw,z_mw,vr_mw,vt_x_mw,vt_y_mw,vt_z_mw,x_full
 
 def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,N,filename1="vdisp_mw_slices_function.png",filename2="vdisp_full_slices_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_expected = Orbit.from_name("LMC")
+    o_lmc_plot = Orbit.from_name("LMC")
 
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    o_lmc_plot = Orbit.from_name("LMC")
     friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
     o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
@@ -853,9 +852,16 @@ def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,N,filenam
     plt.savefig(filename2)
     plt.close()
 
-def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,N,filename1="tdisp_mw_slices_function.png",filename2="tdisp_full_slices.png"):
+def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,hq_df,mw_interp,N,filename1="tdisp_mw_slices_function.png",filename2="tdisp_full_slices.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_expected = Orbit.from_name("LMC")
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
 
     log_sigma_t_mw_2d = np.where(sigma_t_mw_2d>0,np.log10(sigma_t_mw_2d),np.nan)
     log_sigma_t_full_2d = np.where(sigma_t_full_2d>0,np.log10(sigma_t_full_2d),np.nan)
@@ -876,14 +882,22 @@ def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,N,filename1="tdisp_mw_s
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
     plt.title("MW+LMC+NIF, tangential dispersion at |x| < "+str(dx)+" kpc, N="+str(N))
-    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color='orange', s=100, marker='*', zorder=5, label="LMC")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
     plt.legend()
     plt.savefig(filename2)
     plt.close()
 
-def plot_oa_slices(dx, beta_mw_2d, beta_full_2d, N, filename1="oa_mw_slices_function.png", filename2="oa_full_slices_function.png"):
+def plot_oa_slices(dx, beta_mw_2d, beta_full_2d,hq_df,mw_interp, N, filename1="oa_mw_slices_function.png", filename2="oa_full_slices_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_expected = Orbit.from_name("LMC")
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
 
     plt.pcolormesh(bins_yz, bins_yz, beta_mw_2d, cmap='Blues',vmin=0,vmax=1)
     plt.colorbar(label="β")
@@ -898,14 +912,22 @@ def plot_oa_slices(dx, beta_mw_2d, beta_full_2d, N, filename1="oa_mw_slices_func
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
     plt.title("MW+LMC+NIF, orbital anisotropy at |x| < "+str(dx)+" kpc, N="+str(N))
-    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color='orange', s=100, marker='*', zorder=5, label="LMC")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
     plt.legend()
     plt.savefig(filename2)
     plt.close()
 
-def plot_density_ratio(dx,stars_mw,stars_full,N,filename="density_ratio_function.png"):
-    o_lmc_expected = Orbit.from_name("LMC")
+def plot_density_ratio(dx,stars_mw,stars_full,hq_df,mw_interp,N,filename="density_ratio_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
 
     x_mw, y_mw, z_mw = get_coords(stars_mw)
     x_full, y_full, z_full = get_coords(stars_full)
@@ -937,14 +959,22 @@ def plot_density_ratio(dx,stars_mw,stars_full,N,filename="density_ratio_function
     plt.colorbar(label = "perturbed/unperturbed density ratio (log)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
-    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color="orange", s=100, marker="*", zorder=5, label="LMC")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
     plt.title("Perturbed to unperturbed density ratio at |x| < "+str(dx)+" kpc, N="+str(N))
     plt.savefig(filename)
     plt.close()
 
-def plot_radial_dispersion_ratio(dx,sigma_r_mw_2d, sigma_r_full_2d,N,filename="radial_dispersion_ratio_function.png"):
-    o_lmc_expected = Orbit.from_name("LMC")
-    bins_yz = np.linspace(-500,500,30)
+def plot_radial_dispersion_ratio(dx,sigma_r_mw_2d, sigma_r_full_2d,hq_df,mw_interp,N,filename="radial_dispersion_ratio_function.png"):
+    bins_yz = np.linspace(-500, 500, 30)
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
 
     sigma_mw_nonzero = np.where(sigma_r_mw_2d>0, sigma_r_mw_2d, np.nan)
     sigma_full_nonzero = np.where(sigma_r_full_2d>0, sigma_r_full_2d, np.nan)
@@ -959,15 +989,23 @@ def plot_radial_dispersion_ratio(dx,sigma_r_mw_2d, sigma_r_full_2d,N,filename="r
     plt.colorbar(label="perturbed/unperturbed $σ_r$ ratio (log)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
-    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color="orange", s=100, marker="*", zorder=5, label="LMC")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
     plt.title("Perturbed to unperturbed velocity dispersion ratio, |x| <"+str(dx)+" kpc, N="+str(N))
     plt.legend()
     plt.savefig(filename)
     plt.close()
 
-def plot_tangential_dispersion_ratio(dx,sigma_t_mw_2d,sigma_t_full_2d,N,filename="tangential_dispersion_ratio_function.png"):
-    o_lmc_expected = Orbit.from_name("LMC")
-    bins_yz = np.linspace(-500,500,30)
+def plot_tangential_dispersion_ratio(dx,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,N,filename="tangential_dispersion_ratio_function.png"):
+    bins_yz = np.linspace(-500, 500, 30)
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
 
     sigma_mw_nonzero = np.where(sigma_t_mw_2d>0, sigma_t_mw_2d, np.nan)
     sigma_full_nonzero = np.where(sigma_t_full_2d>0, sigma_t_full_2d, np.nan)
@@ -982,11 +1020,120 @@ def plot_tangential_dispersion_ratio(dx,sigma_t_mw_2d,sigma_t_full_2d,N,filename
     plt.colorbar(label="perturbed/unperturbed $σ_t$ ratio (log)")
     plt.xlabel("y (kpc)")
     plt.ylabel("z (kpc)")
-    plt.scatter(o_lmc_expected.y(), o_lmc_expected.z(), color="orange", s=100, marker="*", zorder=5, label="LMC")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
     plt.title("Perturbed to unperturbed tangential dispersion ratio, |x| <"+str(dx)+" kpc, N="+str(N))
     plt.legend()
     plt.savefig(filename)
     plt.close()
+
+def plot_density_difference(dx,stars_mw,stars_full,hq_df,mw_interp,N,filename="density_difference_function.png"):
+    bins_yz = np.linspace(-500, 500, 30)
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
+
+    x_mw, y_mw, z_mw = get_coords(stars_mw)
+    x_full, y_full, z_full = get_coords(stars_full)
+
+    mask_mw_slice = np.abs(x_mw) < dx
+    mask_full_slice = np.abs(x_full) < dx
+
+    counts_mw, y_edges, z_edges = np.histogram2d(y_mw[mask_mw_slice],z_mw[mask_mw_slice],bins=bins_yz)
+    counts_full, _, _ = np.histogram2d(y_full[mask_full_slice],z_full[mask_full_slice],bins=bins_yz)
+
+    difference_percent = np.where((counts_full > 1) & (counts_mw > 1),(counts_full - counts_mw) / ((counts_full + counts_mw) / 2) * 100, \
+                                np.where((counts_full <= 1) & (counts_mw > 1), -200.0, \
+                                np.where((counts_full > 1) & (counts_mw <= 1), 200.0, np.nan)))
+
+    max_deviation = np.nanmax(np.abs(difference_percent))
+    vmin = -max_deviation
+    vmax = max_deviation
+
+    plt.pcolormesh(y_edges, z_edges, difference_percent.T, cmap="RdBu_r",vmin=vmin,vmax=vmax)
+    plt.colorbar(label = "percent difference")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
+    plt.title("Perturbed - unperturbed density difference at |x| < "+str(dx)+" kpc, N="+str(N))
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def plot_radial_dispersion_difference(dx,sigma_r_mw_2d, sigma_r_full_2d,hq_df,mw_interp,N,filename="radial_dispersion_difference_function.png"):
+    bins_yz = np.linspace(-500, 500, 30)
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
+
+    mw_empty = np.isnan(sigma_r_mw_2d)
+    full_empty = np.isnan(sigma_r_full_2d)
+
+    difference_percent = np.where(~full_empty & ~mw_empty, \
+                                (sigma_r_full_2d - sigma_r_mw_2d) / ((sigma_r_full_2d + sigma_r_mw_2d) / 2) * 100, \
+                                np.where(full_empty & ~mw_empty, -200.0, \
+                                np.where(~full_empty & mw_empty, 200.0, np.nan)))
+
+    max_deviation = np.nanmax(np.abs(difference_percent))
+    vmin = -max_deviation
+    vmax = max_deviation
+
+    plt.pcolormesh(bins_yz, bins_yz,difference_percent,cmap="RdBu_r",vmin=vmin,vmax=vmax)
+    plt.colorbar(label="perturbed - unperturbed percent difference")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
+    plt.title("Perturbed to unperturbed velocity dispersion difference, |x| <"+str(dx)+" kpc, N="+str(N))
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def plot_tangential_dispersion_difference(dx,sigma_t_mw_2d, sigma_t_full_2d,hq_df,mw_interp,N,filename="tangential_dispersion_difference_function.png"):
+    bins_yz = np.linspace(-500, 500, 30)
+    o_lmc_plot = Orbit.from_name("LMC")
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+    lmc_z = o_lmc_plot.z(ts_bckwd)
+
+    mw_empty = np.isnan(sigma_t_mw_2d)
+    full_empty = np.isnan(sigma_t_full_2d)
+
+    difference_percent = np.where(~full_empty & ~mw_empty, \
+                                (sigma_t_full_2d - sigma_t_mw_2d) / ((sigma_t_full_2d + sigma_t_mw_2d) / 2) * 100, \
+                                np.where(full_empty & ~mw_empty, -200.0, \
+                                np.where(~full_empty & mw_empty, 200.0, np.nan)))
+
+    max_deviation = np.nanmax(np.abs(difference_percent))
+    vmin = -max_deviation
+    vmax = max_deviation
+
+    plt.pcolormesh(bins_yz, bins_yz,difference_percent,cmap="RdBu_r",vmin=vmin,vmax=vmax)
+    plt.colorbar(label="perturbed - unperturbed percent difference")
+    plt.xlabel("y (kpc)")
+    plt.ylabel("z (kpc)")
+    plt.scatter(o_lmc_plot.y(), o_lmc_plot.z(),color="orange", s=100, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_y,lmc_z,color="orange",linestyle="--",label="LMC orbit")
+    plt.title("Perturbed to unperturbed tangential dispersion difference, |x| <"+str(dx)+" kpc, N="+str(N))
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
 
 def main(n=5000):
     gomp = ctypes.CDLL("libgomp.so.1")
@@ -1050,12 +1197,16 @@ def main(n=5000):
           get_dispersion_slices(20,x_mw,y_mw,z_mw,vr_mw,vt_x_mw,vt_y_mw,vt_z_mw,x_full,y_full,z_full,vr_full,vt_x_full,vt_y_full,vt_z_full)
 
     plot_vdisp_slices(20,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,n)
-    plot_tdisp_slices(20,sigma_t_mw_2d,sigma_t_full_2d,n)
-    plot_oa_slices(20,beta_mw_2d,beta_full_2d,n)
+    plot_tdisp_slices(20,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,n)
+    plot_oa_slices(20,beta_mw_2d,beta_full_2d,hq_df,mw_interp,n)
 
-    plot_density_ratio(20,stars_mw,stars_full,n)
-    plot_radial_dispersion_ratio(20,sigma_r_mw_2d,sigma_r_full_2d,n)
-    plot_tangential_dispersion_ratio(20,sigma_t_mw_2d,sigma_t_full_2d,n)
+    plot_density_ratio(20,stars_mw,stars_full,hq_df,mw_interp,n)
+    plot_radial_dispersion_ratio(20,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,n)
+    plot_tangential_dispersion_ratio(20,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,n)
+    
+    plot_density_difference(20,stars_mw,stars_full,hq_df,mw_interp,n)
+    plot_radial_dispersion_difference(20,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,n)
+    plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,n)
 
 if __name__ == "__main__":
     main()
