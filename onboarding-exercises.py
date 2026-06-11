@@ -28,6 +28,8 @@ from galpy.df import (
     isotropicHernquistdf,
     constantbetaHernquistdf)
 from scipy.optimize import minimize
+from scipy.integrate import cumulative_trapezoid
+from scipy.interpolate import interp1d
 import time
 
 # Exercise 1
@@ -603,7 +605,6 @@ def get_vr_vt(x,y,z,vx,vy,vz):
         return vr, vt_x, vt_y, vt_z
 
 def plot_radial_density_comparison(r_mw_final,r_full_final,N,filename="radial_density_comparsion_function.png"):
-
     bins = np.geomspace(0.1,1000,50)
     r_centres = 0.5 * (bins[:-1] + bins[1:])
     volumes = (4.0/3.0) * np.pi * (bins[1:]**3 - bins[:-1]**3)
@@ -623,11 +624,17 @@ def plot_radial_density_comparison(r_mw_final,r_full_final,N,filename="radial_de
     plt.savefig(filename)
     plt.close()
 
-def plot_density_slices(dx,stars_mw,stars_full,mw_interp,hq_df,N,filename1="density_slice_mw_function.png",filename2="density_slice_full_function.png"):
+def make_plottable_lmc_orbit(hq_df,mw_interp):
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
     o_lmc_plot = Orbit.from_name("LMC")
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=hq_df.sigmar)
+    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method = "dop853_c")
+
+    return o_lmc_plot
+
+def plot_density_slices(dx,stars_mw,stars_full,o_lmc_plot,N,filename1="density_slice_mw_function.png",filename2="density_slice_full_function.png"):
+    bins_yz = np.linspace(-500,500,30)
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -640,8 +647,6 @@ def plot_density_slices(dx,stars_mw,stars_full,mw_interp,hq_df,N,filename1="dens
     # Density slice in Y-Z, X=0
     mask_mw_slice = np.abs(x_mw) < dx
     mask_full_slice = np.abs(x_full) < dx
-
-    bins_yz = np.linspace(-500,500,30)
 
     counts_mw, y_edges_mw, z_edges_mw = np.histogram2d(y_mw[mask_mw_slice],z_mw[mask_mw_slice],bins=bins_yz)
     counts_full, y_edges_full, z_edges_full = np.histogram2d(y_full[mask_full_slice],z_full[mask_full_slice],bins=bins_yz)
@@ -816,13 +821,9 @@ def get_dispersion_slices(dx,x_mw,y_mw,z_mw,vr_mw,vt_x_mw,vt_y_mw,vt_z_mw,x_full
 
     return sigma_r_mw_2d, sigma_r_full_2d, sigma_t_mw_2d, sigma_t_full_2d, beta_mw_2d, beta_full_2d
 
-def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,N,filename1="vdisp_mw_slices_function.png",filename2="vdisp_full_slices_function.png"):
+def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_plot,N,filename1="vdisp_mw_slices_function.png",filename2="vdisp_full_slices_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -852,13 +853,9 @@ def plot_vdisp_slices(dx,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,N,filenam
     plt.savefig(filename2)
     plt.close()
 
-def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,hq_df,mw_interp,N,filename1="tdisp_mw_slices_function.png",filename2="tdisp_full_slices.png"):
+def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,o_lmc_plot,N,filename1="tdisp_mw_slices_function.png",filename2="tdisp_full_slices.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -888,13 +885,9 @@ def plot_tdisp_slices(dx, sigma_t_mw_2d, sigma_t_full_2d,hq_df,mw_interp,N,filen
     plt.savefig(filename2)
     plt.close()
 
-def plot_oa_slices(dx, beta_mw_2d, beta_full_2d,hq_df,mw_interp, N, filename1="oa_mw_slices_function.png", filename2="oa_full_slices_function.png"):
+def plot_oa_slices(dx, beta_mw_2d, beta_full_2d,o_lmc_plot,N,filename1="oa_mw_slices_function.png", filename2="oa_full_slices_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -918,13 +911,9 @@ def plot_oa_slices(dx, beta_mw_2d, beta_full_2d,hq_df,mw_interp, N, filename1="o
     plt.savefig(filename2)
     plt.close()
 
-def plot_density_ratio(dx,stars_mw,stars_full,hq_df,mw_interp,N,filename="density_ratio_function.png"):
+def plot_density_ratio(dx,stars_mw,stars_full,o_lmc_plot,N,filename="density_ratio_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -965,13 +954,9 @@ def plot_density_ratio(dx,stars_mw,stars_full,hq_df,mw_interp,N,filename="densit
     plt.savefig(filename)
     plt.close()
 
-def plot_radial_dispersion_ratio(dx,sigma_r_mw_2d, sigma_r_full_2d,hq_df,mw_interp,N,filename="radial_dispersion_ratio_function.png"):
+def plot_radial_dispersion_ratio(dx,sigma_r_mw_2d, sigma_r_full_2d,o_lmc_plot,N,filename="radial_dispersion_ratio_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -996,13 +981,9 @@ def plot_radial_dispersion_ratio(dx,sigma_r_mw_2d, sigma_r_full_2d,hq_df,mw_inte
     plt.savefig(filename)
     plt.close()
 
-def plot_tangential_dispersion_ratio(dx,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,N,filename="tangential_dispersion_ratio_function.png"):
+def plot_tangential_dispersion_ratio(dx,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_plot,N,filename="tangential_dispersion_ratio_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -1027,13 +1008,9 @@ def plot_tangential_dispersion_ratio(dx,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_i
     plt.savefig(filename)
     plt.close()
 
-def plot_density_difference(dx,stars_mw,stars_full,hq_df,mw_interp,N,filename="density_difference_function.png"):
+def plot_density_difference(dx,stars_mw,stars_full,o_lmc_plot,N,filename="density_difference_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -1066,13 +1043,9 @@ def plot_density_difference(dx,stars_mw,stars_full,hq_df,mw_interp,N,filename="d
     plt.savefig(filename)
     plt.close()
 
-def plot_radial_dispersion_difference(dx,sigma_r_mw_2d, sigma_r_full_2d,hq_df,mw_interp,N,filename="radial_dispersion_difference_function.png"):
+def plot_radial_dispersion_difference(dx,sigma_r_mw_2d, sigma_r_full_2d,o_lmc_plot,N,filename="radial_dispersion_difference_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -1100,13 +1073,9 @@ def plot_radial_dispersion_difference(dx,sigma_r_mw_2d, sigma_r_full_2d,hq_df,mw
     plt.savefig(filename)
     plt.close()
 
-def plot_tangential_dispersion_difference(dx,sigma_t_mw_2d, sigma_t_full_2d,hq_df,mw_interp,N,filename="tangential_dispersion_difference_function.png"):
+def plot_tangential_dispersion_difference(dx,sigma_t_mw_2d, sigma_t_full_2d,o_lmc_plot,N,filename="tangential_dispersion_difference_function.png"):
     bins_yz = np.linspace(-500, 500, 30)
-    o_lmc_plot = Orbit.from_name("LMC")
-
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=hq_df.sigmar)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method="dop853_c")
 
     lmc_y = o_lmc_plot.y(ts_bckwd)
     lmc_z = o_lmc_plot.z(ts_bckwd)
@@ -1134,8 +1103,35 @@ def plot_tangential_dispersion_difference(dx,sigma_t_mw_2d, sigma_t_full_2d,hq_d
     plt.savefig(filename)
     plt.close()
 
+def create_modified_density(r_grid,ro,vo):
+    rho = np.array([evaluateDensities(MWPotential2014, r/ro.value, 0., ro=ro.value, vo=vo.value, use_physical=True) for r in r_grid])
+    p_r = rho * r_grid
+    return p_r
 
-def main(n=5000):
+def get_density_cdf(r_grid,p_r):
+    cdf = cumulative_trapezoid(p_r,r_grid,initial=0)
+    cdf /= cdf[-1] # normalizes to [0,1]
+    return cdf
+
+def create_interpolator(r_grid,cdf):
+    inverse_cdf = interp1d(cdf, r_grid)
+    _, unique_cdf_values = np.unique(cdf, return_index=True)
+    return interp1d(cdf[unique_cdf_values], r_grid[unique_cdf_values])
+
+def get_R_z_samples(r_samples,N):
+    phi = np.random.uniform(0, 2*np.pi, N)
+    cos_theta = np.random.uniform(-1, 1, N)
+    sin_theta = np.sqrt(1 - cos_theta**2)
+
+    x_samples = r_samples * sin_theta * np.cos(phi)
+    y_samples = r_samples * sin_theta * np.sin(phi)
+    z_samples = r_samples * cos_theta
+
+    R_samples = np.sqrt(x_samples**2 + y_samples**2)
+    
+    return R_samples, z_samples
+
+def main(n=10000):
     gomp = ctypes.CDLL("libgomp.so.1")
     gomp.omp_set_num_threads(8)
 
@@ -1186,8 +1182,10 @@ def main(n=5000):
     vx_full, vy_full, vz_full = get_velocities(stars_full)
     vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
 
+    """o_lmc_plot = make_plottable_lmc_orbit(hq_df,mw_interp)
+
     plot_radial_density_comparison(r_mw_final,r_full_final,n)
-    plot_density_slices(20,stars_mw,stars_full,mw_interp,hq_df,n)
+    plot_density_slices(20,stars_mw,stars_full,o_lmc_plot,n)
     v_disp_mw, v_disp_full, counts_mw, counts_full = plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,n)
     vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full = plot_tangential_disp_comparison(vt_x_mw,vt_y_mw,vt_z_mw, \
         vt_x_full,vt_y_full,vt_z_full,r_mw_final,r_full_final,n)
@@ -1196,17 +1194,30 @@ def main(n=5000):
     sigma_r_mw_2d, sigma_r_full_2d, sigma_t_mw_2d, sigma_t_full_2d, beta_mw_2d, beta_full_2d = \
           get_dispersion_slices(20,x_mw,y_mw,z_mw,vr_mw,vt_x_mw,vt_y_mw,vt_z_mw,x_full,y_full,z_full,vr_full,vt_x_full,vt_y_full,vt_z_full)
 
-    plot_vdisp_slices(20,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,n)
-    plot_tdisp_slices(20,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,n)
-    plot_oa_slices(20,beta_mw_2d,beta_full_2d,hq_df,mw_interp,n)
+    plot_vdisp_slices(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_plot,n)
+    plot_tdisp_slices(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_plot,n)
+    plot_oa_slices(20,beta_mw_2d,beta_full_2d,o_lmc_plot,n)
 
-    plot_density_ratio(20,stars_mw,stars_full,hq_df,mw_interp,n)
-    plot_radial_dispersion_ratio(20,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,n)
-    plot_tangential_dispersion_ratio(20,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,n)
+    plot_density_ratio(20,stars_mw,stars_full,o_lmc_plot,n)
+    plot_radial_dispersion_ratio(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_plot,n)
+    plot_tangential_dispersion_ratio(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_plot,n)
     
-    plot_density_difference(20,stars_mw,stars_full,hq_df,mw_interp,n)
-    plot_radial_dispersion_difference(20,sigma_r_mw_2d,sigma_r_full_2d,hq_df,mw_interp,n)
-    plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,hq_df,mw_interp,n)
+    plot_density_difference(20,stars_mw,stars_full,o_lmc_plot,n)
+    plot_radial_dispersion_difference(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_plot,n)
+    plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_plot,n)"""
+
+    r_grid_density = np.geomspace(0.1, 1000, 10000) # kpc
+    p_r = create_modified_density(r_grid_density,ro,vo)
+    cdf = get_density_cdf(r_grid_density,p_r)
+    inverse_cdf = create_interpolator(r_grid_density,cdf)
+
+    u_sample = np.random.uniform(0.,1.,n)
+    u_sample = np.clip(u_sample,0.,1.)
+    r_samples = inverse_cdf(u_sample)
+
+    R_samples, z_samples = get_R_z_samples(r_samples,n)
+
+    orbits_r = hq_df.sample(n=n,R=R_samples/ro.value,z=z_samples/ro.value,return_orbit=True)
 
 if __name__ == "__main__":
     main()
