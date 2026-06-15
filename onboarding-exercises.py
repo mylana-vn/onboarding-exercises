@@ -560,9 +560,7 @@ def plot_full_halo_response(stars_nif,ts_fwd,N_large,filename="full_halo_respons
     plt.savefig(filename)
     plt.close()
 
-def integrate_mw(ro,vo,hq_df,mw_interp,N):
-    np.random.seed(0)
-    stars_mw = hq_df.sample(n=N)
+def integrate_mw(ro,vo,stars_mw,mw_interp,N):
     ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
     r_mw = stars_mw.r(use_physical=True)
     mask_mw = (r_mw>0.001) & (r_mw<10000.)
@@ -571,9 +569,7 @@ def integrate_mw(ro,vo,hq_df,mw_interp,N):
     stars_mw.integrate(ts_fwd,mw_interp,method="dop853_c")
     return stars_mw
 
-def integrate_full(ro,vo,hq_df,mw_interp,lmc_moving,nif,N):
-    np.random.seed(0)
-    stars_full = hq_df.sample(n=N)
+def integrate_full(ro,vo,stars_full,mw_interp,lmc_moving,nif,N):
     ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
     r_full = stars_full.r(use_physical=True)
     stars_full = stars_full[(r_full>0.001) & (r_full<10000)]
@@ -604,13 +600,13 @@ def get_vr_vt(x,y,z,vx,vy,vz):
         vt_z = vz - vr*r_unit_z
         return vr, vt_x, vt_y, vt_z
 
-def plot_radial_density_comparison(r_mw_final,r_full_final,N,filename="radial_density_comparsion_function.png"):
+def plot_radial_density_comparison(r_mw_final,r_full_final,N,weights_mw=None,weights_full=None,filename="radial_density_comparsion_function.png"):
     bins = np.geomspace(0.1,1000,50)
     r_centres = 0.5 * (bins[:-1] + bins[1:])
     volumes = (4.0/3.0) * np.pi * (bins[1:]**3 - bins[:-1]**3)
 
-    counts_mw, edges_mw = np.histogram(r_mw_final,bins=bins) 
-    counts_full, edges_full = np.histogram(r_full_final,bins=bins) 
+    counts_mw, edges_mw = np.histogram(r_mw_final,bins=bins,weights=weights_mw) 
+    counts_full, edges_full = np.histogram(r_full_final,bins=bins,weights=weights_mw)
 
     n_mw = counts_mw / volumes
     n_full = counts_full / volumes
@@ -1103,32 +1099,51 @@ def plot_tangential_dispersion_difference(dx,sigma_t_mw_2d, sigma_t_full_2d,o_lm
     plt.savefig(filename)
     plt.close()
 
-def create_modified_density(r_grid,ro,vo):
-    rho = np.array([evaluateDensities(MWPotential2014, r/ro.value, 0., ro=ro.value, vo=vo.value, use_physical=True) for r in r_grid])
-    p_r = rho * r_grid
-    return p_r
+def create_modified_density(r_kpc,best_M,best_a):
+    rho = (best_M / (2 * np.pi)) * best_a / (r_kpc * (r_kpc + best_a)**3)
+    rho_r = rho * r_kpc
+    return rho_r
 
-def get_density_cdf(r_grid,p_r):
-    cdf = cumulative_trapezoid(p_r,r_grid,initial=0)
-    cdf /= cdf[-1] # normalizes to [0,1]
+def get_normalized_enclosed_mass(r_kpc,rho_r):
+    p_r = 4 * np.pi * rho_r * r_kpc**2
+    cumulative = cumulative_trapezoid(p_r, r_kpc, initial=0)
+    cdf = cumulative / cumulative[-1]
+
+    plt.figure()
+    plt.semilogx(r_kpc, cdf)
+    plt.xlabel('r (kpc)')
+    plt.ylabel('CDF')
+    plt.title('Normalized cumulative distribution')
+    plt.savefig('cdf_check.png')
+    plt.close()
+
     return cdf
 
-def create_interpolator(r_grid,cdf):
-    inverse_cdf = interp1d(cdf, r_grid)
-    _, unique_cdf_values = np.unique(cdf, return_index=True)
-    return interp1d(cdf[unique_cdf_values], r_grid[unique_cdf_values])
+def interpolate_samples(cdf,r_kpc,N):
+    inverse_cdf = interp1d(cdf,r_kpc)
 
-def get_R_z_samples(r_samples,N):
-    phi = np.random.uniform(0, 2*np.pi, N)
-    cos_theta = np.random.uniform(-1, 1, N)
+    u_samples = np.random.uniform(0,1,N)
+    r_samples = inverse_cdf(u_samples)
+
+    plt.figure()
+    plt.hist(r_samples, bins=np.logspace(np.log10(0.1), np.log10(300), 50))
+    plt.xscale('log')
+    plt.xlabel('r (kpc)')
+    plt.ylabel('count')
+    plt.title('Sampled radii distribution')
+    plt.savefig('sampled_radii_check.png')
+    plt.close()
+
+    return r_samples
+
+def sample_random_angles(r_samples,N):
+    phi = np.random.uniform(0,2*np.pi,N)
+    cos_theta = np.random.uniform(-1,1,N)
     sin_theta = np.sqrt(1 - cos_theta**2)
 
-    x_samples = r_samples * sin_theta * np.cos(phi)
-    y_samples = r_samples * sin_theta * np.sin(phi)
+    R_samples = r_samples * sin_theta
     z_samples = r_samples * cos_theta
 
-    R_samples = np.sqrt(x_samples**2 + y_samples**2)
-    
     return R_samples, z_samples
 
 def main(n=10000):
@@ -1170,21 +1185,28 @@ def main(n=10000):
 
     nif = NonInertialFrameForce(a0=[ax_int,ay_int,az_int])
 
-    stars_mw = integrate_mw(ro,vo,hq_df,mw_interp,n)
+    np.random.seed(0)
+    """stars_mw_sample = hq_df.sample(n=n)
+    stars_full_sample = hq_df.sample(n=n)
+
+    stars_mw = integrate_mw(ro,vo,stars_mw_sample,mw_interp,n)
     r_mw_final = np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)
     x_mw, y_mw, z_mw = get_coords(stars_mw)
     vx_mw, vy_mw, vz_mw = get_velocities(stars_mw)
     vr_mw, vt_x_mw, vt_y_mw, vt_z_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
 
-    stars_full = integrate_full(ro,vo,hq_df,mw_interp,lmc_moving,nif,n)
+    stars_full = integrate_full(ro,vo,stars_full_sample,mw_interp,lmc_moving,nif,n)
     r_full_final = np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)
     x_full,y_full,z_full = get_coords(stars_full)
     vx_full, vy_full, vz_full = get_velocities(stars_full)
     vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
 
-    """o_lmc_plot = make_plottable_lmc_orbit(hq_df,mw_interp)
+    o_lmc_plot = make_plottable_lmc_orbit(hq_df,mw_interp)
 
-    plot_radial_density_comparison(r_mw_final,r_full_final,n)
+    plot_radial_density_comparison(r_mw_final,r_full_final,n)"""
+
+
+    """
     plot_density_slices(20,stars_mw,stars_full,o_lmc_plot,n)
     v_disp_mw, v_disp_full, counts_mw, counts_full = plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,n)
     vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full = plot_tangential_disp_comparison(vt_x_mw,vt_y_mw,vt_z_mw, \
@@ -1204,20 +1226,30 @@ def main(n=10000):
     
     plot_density_difference(20,stars_mw,stars_full,o_lmc_plot,n)
     plot_radial_dispersion_difference(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_plot,n)
-    plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_plot,n)"""
+    plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_plot,n)
+    """
+    r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc
+    r_kpc = r_grid.value
 
-    r_grid_density = np.geomspace(0.1, 1000, 10000) # kpc
-    p_r = create_modified_density(r_grid_density,ro,vo)
-    cdf = get_density_cdf(r_grid_density,p_r)
-    inverse_cdf = create_interpolator(r_grid_density,cdf)
+    rho_r = create_modified_density(r_kpc,best_M,best_a)
+    cdf = get_normalized_enclosed_mass(r_kpc,rho_r)
 
-    u_sample = np.random.uniform(0.,1.,n)
-    u_sample = np.clip(u_sample,0.,1.)
-    r_samples = inverse_cdf(u_sample)
+    r_samples = interpolate_samples(cdf,r_kpc,n)
+    R_samples, z_samples = sample_random_angles(r_samples,n)
+    stars_mw_radial = hq_df.sample(n=n,R=R_samples*u.kpc,z=z_samples*u.kpc)
+    stars_full_radial = hq_df.sample(n=n,R=R_samples*u.kpc,z=z_samples*u.kpc)
 
-    R_samples, z_samples = get_R_z_samples(r_samples,n)
+    stars_mw_radial = integrate_mw(ro,vo,stars_mw_radial,mw_interp,n)
+    r_mw_final_radial = np.sqrt(stars_mw_radial.x(ts_fwd[-1])**2 + stars_mw_radial.y(ts_fwd[-1])**2 + stars_mw_radial.z(ts_fwd[-1])**2)
+    r_mw_initial_radial = np.sqrt(stars_mw_radial.x(ts_fwd[0])**2 + stars_mw_radial.y(ts_fwd[0])**2 + stars_mw_radial.z(ts_fwd[0])**2)
+    weights_mw = 1/r_mw_initial_radial
 
-    orbits_r = hq_df.sample(n=n,R=R_samples/ro.value,z=z_samples/ro.value,return_orbit=True)
+    stars_full_radial = integrate_full(ro,vo,stars_full_radial,mw_interp,lmc_moving,nif,n)
+    r_full_final_radial = np.sqrt(stars_full_radial.x(ts_fwd[-1])**2 + stars_full_radial.y(ts_fwd[-1])**2 + stars_full_radial.z(ts_fwd[-1])**2)
+    r_full_initial_radial = np.sqrt(stars_mw_radial.x(ts_fwd[0])**2 + stars_mw_radial.y(ts_fwd[0])**2 + stars_mw_radial.z(ts_fwd[0])**2)
+    weights_full = 1/r_full_initial_radial
+
+    plot_radial_density_comparison(r_mw_final_radial,r_full_final_radial,n,weights_mw,weights_full,filename="radial_density_biased.png")
 
 if __name__ == "__main__":
     main()
