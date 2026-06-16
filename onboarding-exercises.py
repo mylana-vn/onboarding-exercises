@@ -1146,9 +1146,57 @@ def sample_random_angles(r_samples,N):
 
     return R_samples, z_samples
 
-def main(n=10000):
+def plot_displacement_field(x_mw,y_mw,x_full,y_full,o_lmc_plot,filename="xy_position_field.png"):
+    plotted_stars = np.random.choice(len(x_mw), 500, replace=False)
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    lmc_x = o_lmc_plot.x(ts_bckwd)
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+
+    delta_x = x_full - x_mw
+    delta_y = y_full - y_mw
+    mag = np.sqrt(delta_x**2 + delta_y**2)
+
+    plt.quiver(x_mw[plotted_stars],y_mw[plotted_stars],delta_x[plotted_stars],delta_y[plotted_stars],mag[plotted_stars],
+               cmap="viridis",alpha=0.8)
+    plt.colorbar(label="displacement magnitude (kpc)")
+    plt.scatter(o_lmc_plot.x(), o_lmc_plot.y(),color="red", s=80, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_x,lmc_y,color="red",linestyle="--",label="LMC orbit",alpha=0.8)
+    plt.xlabel("x (kpc)")
+    plt.ylabel("y (kpc)")
+    plt.title("Unperturbed vs. perturbed displacement field")
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def plot_velocity_field(vx_mw,vy_mw,vx_full,vy_full,o_lmc_plot,filename="xy_velocity_field.png"):
+    plotted_stars = np.random.choice(len(vx_mw), 500, replace=False)
+
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
+    lmc_x = o_lmc_plot.x(ts_bckwd)
+    lmc_y = o_lmc_plot.y(ts_bckwd)
+
+    delta_x = vx_full - vx_mw
+    delta_y = vy_full - vy_mw
+    mag = np.sqrt(delta_x**2 + delta_y**2)
+
+    plt.quiver(vx_mw[plotted_stars],vy_mw[plotted_stars],delta_x[plotted_stars],delta_y[plotted_stars],mag[plotted_stars],
+               cmap="viridis",alpha=0.8)
+    plt.colorbar(label="velocity change magnitude (km/s)")
+    plt.scatter(o_lmc_plot.x(), o_lmc_plot.y(),color="red", s=80, marker='*', zorder=5, label="LMC current position")
+    plt.plot(lmc_x,lmc_y,color="red",linestyle="--",label="LMC orbit",alpha=0.8)
+    plt.xlabel("x (kpc)")
+    plt.ylabel("y (kpc)")
+    plt.title("Unperturbed vs. perturbed velocity field")
+    plt.legend()
+    plt.savefig(filename)
+    plt.close()
+
+def main(n=50000):
     gomp = ctypes.CDLL("libgomp.so.1")
     gomp.omp_set_num_threads(8)
+    
+    np.random.seed(0)
 
     ro, vo = 8.0 * u.kpc, 220.0 * u.km / u.s
     R0 = 8.0 * u.kpc
@@ -1184,9 +1232,11 @@ def main(n=10000):
     az_int = lambda t: np.interp(t,t_galpy,az)
 
     nif = NonInertialFrameForce(a0=[ax_int,ay_int,az_int])
+    o_lmc_plot = make_plottable_lmc_orbit(hq_df,mw_interp)
 
-    np.random.seed(0)
-    """stars_mw_sample = hq_df.sample(n=n)
+    # unbiased sample
+
+    stars_mw_sample = hq_df.sample(n=n)
     stars_full_sample = hq_df.sample(n=n)
 
     stars_mw = integrate_mw(ro,vo,stars_mw_sample,mw_interp,n)
@@ -1201,12 +1251,8 @@ def main(n=10000):
     vx_full, vy_full, vz_full = get_velocities(stars_full)
     vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
 
-    o_lmc_plot = make_plottable_lmc_orbit(hq_df,mw_interp)
+    plot_radial_density_comparison(r_mw_final,r_full_final,n)
 
-    plot_radial_density_comparison(r_mw_final,r_full_final,n)"""
-
-
-    """
     plot_density_slices(20,stars_mw,stars_full,o_lmc_plot,n)
     v_disp_mw, v_disp_full, counts_mw, counts_full = plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,n)
     vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full = plot_tangential_disp_comparison(vt_x_mw,vt_y_mw,vt_z_mw, \
@@ -1227,7 +1273,11 @@ def main(n=10000):
     plot_density_difference(20,stars_mw,stars_full,o_lmc_plot,n)
     plot_radial_dispersion_difference(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_plot,n)
     plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_plot,n)
-    """
+    
+
+
+    # high-r biased sampling
+
     r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc
     r_kpc = r_grid.value
 
@@ -1244,12 +1294,50 @@ def main(n=10000):
     r_mw_initial_radial = np.sqrt(stars_mw_radial.x(ts_fwd[0])**2 + stars_mw_radial.y(ts_fwd[0])**2 + stars_mw_radial.z(ts_fwd[0])**2)
     weights_mw = 1/r_mw_initial_radial
 
+    x_mw_radial, y_mw_radial, z_mw_radial = get_coords(stars_mw_radial)
+    vx_mw_radial, vy_mw_radial, vz_mw_radial = get_velocities(stars_mw_radial)
+    vr_mw_radial, vt_x_mw_radial, vt_y_mw_radial, vt_z_mw_radial = get_vr_vt(x_mw_radial,y_mw_radial,z_mw_radial,vx_mw_radial,vy_mw_radial,vz_mw_radial)
+
     stars_full_radial = integrate_full(ro,vo,stars_full_radial,mw_interp,lmc_moving,nif,n)
     r_full_final_radial = np.sqrt(stars_full_radial.x(ts_fwd[-1])**2 + stars_full_radial.y(ts_fwd[-1])**2 + stars_full_radial.z(ts_fwd[-1])**2)
     r_full_initial_radial = np.sqrt(stars_mw_radial.x(ts_fwd[0])**2 + stars_mw_radial.y(ts_fwd[0])**2 + stars_mw_radial.z(ts_fwd[0])**2)
     weights_full = 1/r_full_initial_radial
 
+    x_full_radial, y_full_radial, z_full_radial = get_coords(stars_full_radial)
+    vx_full_radial, vy_full_radial, vz_full_radial = get_velocities(stars_full_radial)
+    vr_full_radial, vt_x_full_radial, vt_y_full_radial, vt_z_full_radial = get_vr_vt(x_full_radial,y_full_radial,z_full_radial,vx_full_radial,vy_full_radial,vz_full_radial)
+
     plot_radial_density_comparison(r_mw_final_radial,r_full_final_radial,n,weights_mw,weights_full,filename="radial_density_biased.png")
+    plot_density_slices(20,stars_mw_radial,stars_full_radial,o_lmc_plot,n,filename1="density_slice_mw_biased.png",filename2="density_slice_full_biased.png")
+    v_disp_mw_radial, v_disp_full_radial, counts_mw_radial, counts_full_radial = plot_vdisp_profile_comparison(vr_mw_radial,
+                                                                                vr_full_radial,r_mw_final_radial,r_full_final_radial,n,
+                                                                                filename="vdisp_comparison_biased.png")
+    vt_disp_mw_radial, vt_disp_full_radial, counts_t_mw_radial, counts_t_full_radial = \
+        plot_tangential_disp_comparison(vt_x_mw_radial,vt_y_mw_radial,vt_z_mw_radial, vt_x_full_radial,vt_y_full_radial,
+        vt_z_full_radial,r_mw_final_radial,r_full_final_radial,n,filename="tangential_disp_comparison_biased.png")
+    plot_orbital_anisotropy_comparison(v_disp_mw_radial,vt_disp_mw_radial,counts_mw_radial,counts_t_mw_radial,v_disp_full_radial,
+                                       vt_disp_full_radial,counts_full_radial,counts_t_full_radial,n,
+                                       filename="orbital_anisotropy_comparison_biased.png")
+
+    sigma_r_mw_2d_radial, sigma_r_full_2d_radial, sigma_t_mw_2d_radial, sigma_t_full_2d_radial, beta_mw_2d_radial, beta_full_2d_radial = \
+          get_dispersion_slices(20,x_mw_radial,y_mw_radial,z_mw_radial,vr_mw_radial,vt_x_mw_radial,vt_y_mw_radial,vt_z_mw_radial,
+          x_full_radial,y_full_radial,z_full_radial,vr_full_radial,vt_x_full_radial,vt_y_full_radial,vt_z_full_radial)
+    
+    plot_vdisp_slices(20,sigma_r_mw_2d_radial,sigma_r_full_2d_radial,o_lmc_plot,n,
+                      filename1="vdisp_mw_slices_biased.png",filename2="vdisp_full_slices_biased.png")
+    plot_tdisp_slices(20,sigma_t_mw_2d_radial,sigma_t_full_2d_radial,o_lmc_plot,n,
+                      filename1="tdisp_mw_slices_biased.png",filename2="tdisp_full_biased.png")
+    plot_oa_slices(20,beta_mw_2d_radial,beta_full_2d_radial,o_lmc_plot,n,
+                   filename1="oa_mw_slices_biased.png", filename2="oa_full_slices_biased.png")
+
+    plot_displacement_field(x_mw_radial,y_mw_radial,x_full_radial,y_full_radial,o_lmc_plot)
+    plot_velocity_field(vx_mw_radial,vy_mw_radial,vx_full_radial,vy_full_radial,o_lmc_plot)
+
+    plot_density_difference(20,stars_mw_radial,stars_full_radial,o_lmc_plot,n,filename="density_difference_biased.png")
+    plot_radial_dispersion_difference(20,sigma_r_mw_2d_radial,sigma_r_full_2d_radial,o_lmc_plot,n,
+                                      filename="radial_dispersion_difference_biased.png")
+    plot_tangential_dispersion_difference(20,sigma_t_mw_2d_radial,sigma_t_full_2d_radial,o_lmc_plot,n,
+                                          filename="tangential_dispersion_difference_biased.png")
 
 if __name__ == "__main__":
     main()
