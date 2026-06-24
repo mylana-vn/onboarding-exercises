@@ -14,6 +14,7 @@ from galpy.potential import (
     evaluateDensities,
     mass,
     HernquistPotential,
+    PlummerPotential,
     NFWPotential,
     interpSphericalPotential,
     ChandrasekharDynamicalFrictionForce,
@@ -472,10 +473,9 @@ def plot_star_positions(stars,t,filename="star_positions", file_ext=''):
 
 # Exercise 6
 
-def make_lmc_orbit(mass=1.5e11*u.Msun,a=10*u.kpc):
-    lmc = HernquistPotential(amp=2*mass,a=a)
+def make_lmc_orbit(amp=1.5e11*u.Msun,a=10*u.kpc):
+    lmc = PlummerPotential(amp=amp,b=a)
     o_lmc = Orbit.from_name("LMC")
-
     return lmc, o_lmc
 
 def integrate_lmc_backward(hq_df,o_lmc,mw_interp):
@@ -714,9 +714,9 @@ def main(n=50_000):
     nif = NonInertialFrameForce(a0=[ax_int,ay_int,az_int])
     ts_bckwd = np.linspace(0, -3, 21) * u.Gyr
     o_lmc_plot = make_plottable_lmc_orbit(hq_df,halo_potential) # was mw_interp
-    np.save('results/o_lmc_x', o_lmc_plot.x(ts_bckwd).value[::-1])
-    np.save('results/o_lmc_y', o_lmc_plot.y(ts_bckwd).value[::-1])
-    np.save('results/o_lmc_z', o_lmc_plot.z(ts_bckwd).value[::-1])
+    np.save('results/o_lmc_x_plummer', o_lmc_plot.x(ts_bckwd).value[::-1])
+    np.save('results/o_lmc_y_plummer', o_lmc_plot.y(ts_bckwd).value[::-1])
+    np.save('results/o_lmc_z_plummer', o_lmc_plot.z(ts_bckwd).value[::-1])
     # unbiased sample
 
     stars_mw_sample = hq_df.sample(n=n)
@@ -725,37 +725,38 @@ def main(n=50_000):
     stars_mw = integrate_mw(ro,vo,stars_mw_sample,halo_potential,n) # was mw_interp
     r_mw_final = (np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)).value
 
-    np.save('results/r_mw_final', r_mw_final)
+    np.save('results/r_mw_final_plummer', r_mw_final)
     #x_mw, y_mw, z_mw = get_coords(stars_mw)
     pos_mw = get_coords(stars_mw)
-    np.save('results/pos_mw', pos_mw)
+    np.save('results/pos_mw_plummer', pos_mw)
 
     #vx_mw, vy_mw, vz_mw = get_velocities(stars_mw)
     vel_mw_cart = get_velocities(stars_mw)
-    np.save('results/vel_mw_cart', vel_mw_cart)
+    np.save('results/vel_mw_cart_plummer', vel_mw_cart)
     
     # vr_mw, vt_x_mw, vt_y_mw, vt_z_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
     vel_mw_cyl = get_vr_vt(*pos_mw, *vel_mw_cart)
-    np.save('results/vel_mw_cyl', vel_mw_cyl)
+    np.save('results/vel_mw_cyl_plummer', vel_mw_cyl)
 
+    
     stars_full = integrate_full(ro,vo,stars_full_sample,halo_potential,lmc_moving,nif,n) # was mw_interp
     
     r_full_final = (np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)).value
-    np.save('results/r_full_final', r_full_final)
+    np.save('results/r_full_final_plummer', r_full_final)
     
-    # x_full, y_full, z_full
     pos_full = get_coords(stars_full)
-    np.save('results/pos_full', pos_full)
+    np.save('results/pos_full_plummer', pos_full)
 
     #vx_full, vy_full, vz_full = get_velocities(stars_full)
     vel_full_cart = get_velocities(stars_full)
-    np.save('results/vel_full_cart', vel_full_cart)
+    np.save('results/vel_full_cart_plummer', vel_full_cart)
 
     #vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
     vel_full_cyl = get_vr_vt(*pos_full, *vel_full_cart)
-    np.save('results/vel_full_cyl', vel_full_cyl)
+    np.save('results/vel_full_cyl_plummer', vel_full_cyl)
+    # plot_radial_density_comparison(r_mw_final,r_full_final,n)
 
-    np.save('results/times', ts_fwd.value)
+    np.save('results/times_plummer', ts_fwd.value)
     
 if __name__ == "__main__":
     main()
