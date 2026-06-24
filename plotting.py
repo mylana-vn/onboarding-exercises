@@ -4,16 +4,8 @@ from galpy.potential import ChandrasekharDynamicalFrictionForce
 import astropy.units as u
 from galpy.orbit import Orbit
 import matplotlib as mpl
-<<<<<<< HEAD
-from matplotlib.colors import LogNorm, CenteredNorm
-from matplotlib import animation
-
-BINS = 75
-LIMS = 200
-=======
 from matplotlib.colors import LogNorm, SymLogNorm, CenteredNorm
 from matplotlib import animation
->>>>>>> temp
 
 BINS = 75
 LIMS = 200
@@ -41,18 +33,6 @@ def load_results(path_to_results, filename_ext=''):
             vx_full.T, vy_full.T, vz_full.T, 
             vr_full.T, vt_x_full.T, vt_y_full.T, vt_z_full.T,
             r_mw_final.T, r_full_final.T, o_lmc_x.T, o_lmc_y.T, o_lmc_z.T)
-<<<<<<< HEAD
-
-def make_plots(path_to_results='results/'):
-    (x_mw_all, y_mw_all, z_mw_all,
-    vx_mw_all, vy_mw_all, vz_mw_all, 
-    vr_mw_all, vt_x_mw_all, vt_y_mw_all, vt_z_mw_all,
-    x_full_all, y_full_all, z_full_all,
-    vx_full_all, vy_full_all, vz_full_all, 
-    vr_full_all, vt_x_full_all, vt_y_full_all, vt_z_full_all,
-    r_mw_final, r_full_final, o_lmc_x, o_lmc_y, o_lmc_z) = load_results(path_to_results)
-
-=======
 
 def make_plots(path_to_results='results/', output_path='outputs/plots/', file_ext=''):
     (x_mw_all, y_mw_all, z_mw_all,
@@ -63,7 +43,6 @@ def make_plots(path_to_results='results/', output_path='outputs/plots/', file_ex
     vr_full_all, vt_x_full_all, vt_y_full_all, vt_z_full_all,
     r_mw_final, r_full_final, o_lmc_x, o_lmc_y, o_lmc_z) = load_results(path_to_results, filename_ext=file_ext)
 
->>>>>>> temp
     (x_mw, y_mw, z_mw,
     vx_mw, vy_mw, vz_mw, 
     vr_mw, vt_x_mw, vt_y_mw, vt_z_mw,
@@ -101,12 +80,9 @@ def make_plots(path_to_results='results/', output_path='outputs/plots/', file_ex
     plot_density_difference(20,x_mw, y_mw, z_mw, x_full, y_full, z_full,o_lmc_y, o_lmc_z,n)
     plot_radial_dispersion_difference(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_y, o_lmc_z,n)
     plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_y, o_lmc_z,n)
-<<<<<<< HEAD
-=======
     times = np.load('results/times.npy')
 
     plot_halo_response_slice(x_full_all, y_full_all, z_full_all, o_lmc_y, o_lmc_z, times, tind=-1)
->>>>>>> temp
     
 def plot_radial_density_comparison(r_mw_final,r_full_final,N,weights_mw=None,weights_full=None,filename="radial_density_comparison_function.png"):
     bins = np.geomspace(0.1,1000,50)
@@ -597,11 +573,7 @@ def plot_displacement_field(x_mw,y_mw,x_full,y_full,lmc_x, lmc_y,filename="xy_po
     plt.close()
 
 ro = 8.
-<<<<<<< HEAD
-def make_gif(full_x, full_y, full_z, lmc_x, lmc_y, lmc_z, sat_a, filepath, frames=60, bins=60):
-=======
 def make_gif(full_x, full_y, full_z, lmc_x, lmc_y, lmc_z, sat_a, filepath, file_ext='', frames=60, bins=60):
->>>>>>> temp
     # (x_mw, y_mw, z_mw,
     #             vx_mw, vy_mw, vz_mw, 
     #             vr_mw, vt_x_mw, vt_y_mw, vt_z_mw,
@@ -613,8 +585,6 @@ def make_gif(full_x, full_y, full_z, lmc_x, lmc_y, lmc_z, sat_a, filepath, file_
     extent = (-LIMS, LIMS, -LIMS, LIMS)
     xedges = np.linspace(extent[0], extent[1], bins + 1)
     yedges = np.linspace(extent[2], extent[3], bins + 1)
-<<<<<<< HEAD
-=======
 
     H0, _, _ = np.histogram2d(full_x[0], full_y[0], bins=[xedges, yedges])
     norm = LogNorm(vmin=1, vmax=H0.max())
@@ -1132,402 +1102,7 @@ def make_gifs(path_to_results='results/', output_path='outputs/anims/', file_ext
     times = np.load(path_to_results + 'times' + file_ext + '.npy')
     make_halo_response_slice_gif(x_full_all, y_full_all, z_full_all, o_lmc_y, o_lmc_z, times, output_path, file_ext, slice_halfwidth=20.0, bins=50)
 
->>>>>>> temp
 
-    H0, _, _ = np.histogram2d(full_x[0], full_y[0], bins=[xedges, yedges])
-    norm = LogNorm(vmin=1, vmax=H0.max())
-
-    fig, ax = plt.subplots(1, 3, figsize=(18, 6), sharex=True, sharey=True)
-
-    empty = np.zeros((bins, bins))
-    cmap = mpl.colormaps['magma'].copy()
-    cmap.set_bad('black')
-    im_kw = dict(origin='lower', extent=extent, norm=norm, cmap=cmap, aspect='equal')
-    im_xy = ax[0].imshow(empty, **im_kw)
-    im_xz = ax[1].imshow(empty, **im_kw)
-    im_yz = ax[2].imshow(empty, **im_kw)
-
-    circle_xy = plt.Circle((0, 0), sat_a, color='orange', fill=False, lw=4, label='Scale Radius')
-    circle_xz = plt.Circle((0, 0), sat_a, color='orange', fill=False, lw=4)
-    circle_yz = plt.Circle((0, 0), sat_a, color='orange', fill=False, lw=4)
-    ax[0].add_patch(circle_xy)
-    ax[1].add_patch(circle_xz)
-    ax[2].add_patch(circle_yz)
-
-    title = ax[1].set_title('', fontsize=30)
-    ax[0].set_xlim(extent[:2])
-    ax[0].set_ylim(extent[2:])
-
-    ax[0].set_xlabel('x [kpc]', fontsize=25)
-    ax[0].set_ylabel('y [kpc]', fontsize=25)
-    ax[1].set_xlabel('x [kpc]', fontsize=25)
-    ax[1].set_ylabel('z [kpc]', fontsize=25)
-    ax[2].set_xlabel('y [kpc]', fontsize=25)
-    ax[2].set_ylabel('z [kpc]', fontsize=25)
-
-    def update(frame):
-        frame = frame * skip
-        x = full_x[frame]
-        y = full_y[frame]
-        z = full_z[frame]
-
-        x_sat = float(np.ravel(lmc_x[frame])[0])
-        y_sat = float(np.ravel(lmc_y[frame])[0])
-        z_sat = float(np.ravel(lmc_z[frame])[0])
-
-        H_xy, _, _ = np.histogram2d(x, y, bins=[xedges, yedges])
-        H_xz, _, _ = np.histogram2d(x, z, bins=[xedges, yedges])
-        H_yz, _, _ = np.histogram2d(y, z, bins=[xedges, yedges])
-
-        im_xy.set_data(H_xy.T)
-        im_xz.set_data(H_xz.T)
-        im_yz.set_data(H_yz.T)
-
-        circle_xy.center = (x_sat, y_sat)
-        circle_xz.center = (x_sat, z_sat)
-        circle_yz.center = (y_sat, z_sat)
-
-        title.set_text(f't = {frame:.2f}')
-        return im_xy, im_xz, im_yz, circle_xy, circle_xz, circle_yz
-
-    ani = animation.FuncAnimation(fig, update, frames=frames)
-    ani.save(filepath+'halo_density.gif', fps=5)
-
-    xedges = np.linspace(extent[0], extent[1], bins + 1)
-    yedges = np.linspace(extent[2], extent[3], bins + 1)
-
-    fig, ax = plt.subplots(1, 3, figsize=(18, 6), sharex=True, sharey=True)
-
-    empty = np.zeros((bins, bins))
-    x0 = full_x[0]
-    y0 = full_y[0]
-    z0 = full_z[0]
-    H_xy_0, _, _ = np.histogram2d(x0, y0, bins=[xedges, yedges])
-    H_xz_0, _, _ = np.histogram2d(x0, z0, bins=[xedges, yedges])
-    H_yz_0, _, _ = np.histogram2d(y0, z0, bins=[xedges, yedges])
-    xN, yN, zN = full_x[-1], full_y[-1], full_z[-1]
-    H_xyN, _, _ = np.histogram2d(xN, yN, bins=[xedges, yedges])
-    H_xzN, _, _ = np.histogram2d(xN, zN, bins=[xedges, yedges])
-    H_yzN, _, _ = np.histogram2d(yN, zN, bins=[xedges, yedges])
-    halfrange = max(np.abs((H_xyN - H_xy_0)).max(),
-                    np.abs((H_xzN - H_xz_0)).max(),
-                    np.abs((H_yzN - H_yz_0)).max())
-
-    #norm = CenteredNorm(halfrange=halfrange)
-    from matplotlib.colors import SymLogNorm
-    norm = SymLogNorm(linthresh=1, vmin=-halfrange, vmax=halfrange, base=10)
-    im_kw = dict(origin='lower', extent=extent, norm = norm, cmap='RdBu', aspect='equal')
-    im_xy = ax[0].imshow(empty, **im_kw)
-    im_xz = ax[1].imshow(empty, **im_kw)
-    im_yz = ax[2].imshow(empty, **im_kw)
-
-    circle_xy = plt.Circle((0, 0), sat_a, color='cyan', fill=False, lw=4, label='Scale Radius')
-    circle_xz = plt.Circle((0, 0), sat_a, color='cyan', fill=False, lw=4)
-    circle_yz = plt.Circle((0, 0), sat_a, color='cyan', fill=False, lw=4)
-    ax[0].add_patch(circle_xy)
-    ax[1].add_patch(circle_xz)
-    ax[2].add_patch(circle_yz)
-
-    title = ax[1].set_title('', fontsize=30)
-    ax[0].set_xlim(extent[:2])
-    ax[0].set_ylim(extent[2:])
-
-    ax[0].set_xlabel('x [kpc]', fontsize=25)
-    ax[0].set_ylabel('y [kpc]', fontsize=25)
-    ax[1].set_xlabel('x [kpc]', fontsize=25)
-    ax[1].set_ylabel('z [kpc]', fontsize=25)
-    ax[2].set_xlabel('y [kpc]', fontsize=25)
-    ax[2].set_ylabel('z [kpc]', fontsize=25)
-
-    def update(frame):
-        frame = frame * skip
-        x = full_x[frame]
-        y = full_y[frame]
-        z = full_z[frame]
-
-        x_sat = float(np.ravel(lmc_x[frame])[0])
-        y_sat = float(np.ravel(lmc_y[frame])[0])
-        z_sat = float(np.ravel(lmc_z[frame])[0])
-
-        H_xy, _, _ = np.histogram2d(x, y, bins=[xedges, yedges])
-        H_xz, _, _ = np.histogram2d(x, z, bins=[xedges, yedges])
-        H_yz, _, _ = np.histogram2d(y, z, bins=[xedges, yedges])
-        im_xy.set_data((H_xy - H_xy_0).T)
-        im_xz.set_data((H_xz - H_xz_0).T)
-        im_yz.set_data((H_yz - H_yz_0).T)
-
-        circle_xy.center = (x_sat, y_sat)
-        circle_xz.center = (x_sat, z_sat)
-        circle_yz.center = (y_sat, z_sat)
-
-        title.set_text(f't = {frame:.2f}')
-        return im_xy, im_xz, im_yz, circle_xy, circle_xz, circle_yz
-
-    ani = animation.FuncAnimation(fig, update, frames=frames)
-    ani.save(filepath+'halo_density_contrast.gif', fps=5)
-
-def make_density_profile_gif(full_x, full_y, full_z, lmc_x, lmc_y, lmc_z, halo_pot, filepath, eps, r_min=0.5, r_max=300.0,
-                             nbins=40, skip=2, fps=5):
-    '''
-    Animate the spherically-averaged radial density profile of the halo as a
-    function of time. The analytic target profile (the Hernquist fit used to
-    generate the ICs) is drawn as an opaque reference line in the background.
-    '''
-    import astropy.units as u
-
-    # log-spaced spherical shells
-    r_edges = np.geomspace(r_min, r_max, nbins + 1)
-    r_cent = np.sqrt(r_edges[:-1] * r_edges[1:])
-    shell_vol = 4.0 / 3.0 * np.pi * (r_edges[1:]**3 - r_edges[:-1]**3)
-
-    def density_at(frame):
-        r = np.sqrt(np.ravel(full_x[frame])**2
-                    + np.ravel(full_y[frame])**2
-                    + np.ravel(full_z[frame])**2)
-        m_shell, _ = np.histogram(r, bins=r_edges, weights=masses)
-        return m_shell / shell_vol  # Msun / kpc^3
-
-    # analytic target density profile. galpy returns physical density as a
-    # bare ndarray in Msun/pc^3 (no astropy unit attached, even with
-    # turn_physical_on), so attach the unit explicitly and convert to the
-    # Msun/kpc^3 used by the particle-based profile above.
-    target = np.asarray(halo_pot.dens(r_cent * u.kpc, 0), dtype=float)
-    target = (target * u.Msun / u.pc**3).to(u.Msun / u.kpc**3).value
-
-    fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
-    ax.plot(r_cent, target, color='gray', lw=4, alpha=1.0, zorder=1,
-            label='target (Hernquist)')
-    line, = ax.plot([], [], color='tab:red', lw=2.5, marker='o', ms=4,
-                    zorder=2, label='simulation')
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    ax.set_xlabel('r [kpc]', fontsize=20)
-    ax.set_ylabel(r'$\rho(r)$  [$\mathrm{M}_\odot\,\mathrm{kpc}^{-3}$]', fontsize=20)
-    ax.set_xlim(r_min, r_max)
-    #ax.axhline(sim.halo.mass[0], lw=1, c='k', alpha=0.25, label='halo particle mass')
-    ax.axvline(eps, lw=1, c='k', alpha=0.25, label='smoothing length')
-    pos_target = target[target > 0]
-    ax.set_ylim(pos_target.min() * 0.3, pos_target.max() * 3.0)
-    title = ax.set_title('', fontsize=22)
-    ax.legend(fontsize=14)
-
-    def update(frame):
-        frame = frame * skip
-        line.set_data(r_cent, density_at(frame))
-        title.set_text(f't = {frame:.2f} Gyr')
-        return line, title
-
-    ani = animation.FuncAnimation(fig, update, frames=len(full_x) // skip,
-                                  blit=False)
-    ani.save(filepath + 'halo_density_profile.gif', fps=fps)
-    plt.close(fig)
-
-
-def make_enclosed_mass_gif(full_x, halo_pot, filepath, r_min=0.5, r_max=300.0,
-                           nbins=40, skip=2, fps=5):
-    '''
-    Animate the enclosed-mass profile M(<r) of the halo as a function of time.
-    The analytic target (the Hernquist fit used to generate the ICs) is drawn
-    as an opaque reference line in the background, and a horizontal line marks
-    the mass of a single halo particle (the resolution floor).
-    '''
-    import astropy.units as u
-    from galpy.potential import mass as galpy_mass
-
-    r_grid = np.geomspace(r_min, r_max, nbins)
-
-    def enclosed_mass_at(frame):
-        r = np.sqrt(np.ravel(full_x[frame])**2
-                    + np.ravel(full_y[frame])**2
-                    + np.ravel(full_z[frame])**2)
-        order = np.argsort(r)
-        r_sorted = r[order]
-        m_cum = np.cumsum(masses[order])          # cumulative mass with radius
-        # mass enclosed within each plotted radius (counts every particle below
-        # it, including any inside r_min)
-        k = np.searchsorted(r_sorted, r_grid, side='right')
-        return np.where(k > 0, m_cum[np.clip(k - 1, 0, len(m_cum) - 1)], 0.0)
-
-    # analytic target M(<r). galpy returns physical enclosed mass as a bare
-    # ndarray in Msun (no astropy unit attached), so use it directly.
-    target = np.asarray(galpy_mass(halo_pot, r_grid * u.kpc), dtype=float)
-
-    fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
-    ax.plot(r_grid, target, color='gray', lw=4, alpha=1.0, zorder=1,
-            label='target (Hernquist)')
-    line, = ax.plot([], [], color='tab:red', lw=2.5, marker='o', ms=4,
-                    zorder=2, label='simulation')
-    ax.axhline(m_particle, lw=1, c='k', alpha=0.25, label='halo particle mass')
-    ax.set_xscale('log')
-    ax.set_yscale('log')
-    ax.set_xlabel('r [kpc]', fontsize=20)
-    ax.set_ylabel(r'$M(<r)$  [$\mathrm{M}_\odot$]', fontsize=20)
-    ax.set_xlim(r_min, r_max)
-    ax.set_ylim(m_particle * 0.3, target.max() * 3.0)
-    title = ax.set_title('', fontsize=22)
-    ax.legend(fontsize=14)
-
-    def update(frame):
-        frame = frame * skip
-        line.set_data(r_grid, enclosed_mass_at(frame))
-        title.set_text(f't = {frame:.2f} Gyr')
-        return line, title
-
-    ani = animation.FuncAnimation(fig, update, frames=len(full_x) // skip,
-                                  blit=False)
-    ani.save(filepath + 'halo_enclosed_mass_profile.gif', fps=fps)
-    plt.close(fig)
-
-
-def make_kinematics_profile_gifs(full_x, full_y, full_z, full_vx, full_vy, full_vz,  halo_pot, filepath, beta=None, r_min=0.5, r_max=300.0,
-                                 nbins=40, skip=2, fps=5):
-    '''
-    Animate the halo's radial velocity dispersion sigma_r(r), tangential
-    velocity dispersion sigma_t(r), and velocity anisotropy
-    beta(r) = 1 - sigma_t^2 / (2 sigma_r^2) as functions of time. Each panel
-    shows the isotropic-Hernquist target (from the fitted potential) as an
-    opaque reference line in the background.
-
-    Conventions: sigma_r^2 = <v_r^2> - <v_r>^2 and sigma_t^2 = <v_theta^2> +
-    <v_phi^2> = <|v|^2 - v_r^2>, so an isotropic model has sigma_t = sqrt(2)
-    sigma_r and beta = 0.
-    '''
-    import astropy.units as u
-    from galpy.df import isotropicHernquistdf, osipkovmerrittHernquistdf
-
-    r_edges = np.geomspace(r_min, r_max, nbins + 1)
-    r_cent = np.sqrt(r_edges[:-1] * r_edges[1:])
-
-    def stats_at(frame):
-        x = np.ravel(full_x[frame])
-        y = np.ravel(full_y[frame])
-        z = np.ravel(full_z[frame])
-        vx = np.ravel(full_vx)
-        vy = np.ravel(full_vy)
-        vz = np.ravel(full_vz)
-        r = np.sqrt(x**2 + y**2 + z**2)
-        with np.errstate(invalid='ignore', divide='ignore'):
-            v_r = (x * vx + y * vy + z * vz) / r          # radial velocity
-        v_t2 = np.clip(vx**2 + vy**2 + vz**2 - v_r**2, 0.0, None)  # v_theta^2+v_phi^2
-
-        sig_r = np.full(nbins, np.nan)
-        sig_t = np.full(nbins, np.nan)
-        beta = np.full(nbins, np.nan)
-        which = np.digitize(r, r_edges) - 1
-        for i in range(nbins):
-            sel = which == i
-            if np.count_nonzero(sel) > 1:
-                sr2 = np.var(v_r[sel])         # <v_r^2> - <v_r>^2
-                st2 = np.mean(v_t2[sel])       # <v_theta^2> + <v_phi^2>
-                sig_r[i] = np.sqrt(sr2)
-                sig_t[i] = np.sqrt(st2)
-                if sr2 > 0:
-                    beta[i] = 1.0 - st2 / (2.0 * sr2)
-        return sig_r, sig_t, beta
-
-    # isotropic Hernquist targets. galpy returns bare floats in its physical
-    # velocity unit (km/s) and does not vectorise over r, so loop.
-    if beta==None:
-        df = isotropicHernquistdf(pot=halo_pot)
-    elif beta=='OM':
-        df = osipkovmerrittHernquistdf(pot=halo_pot)
-    sig_r_target = np.array([float(df.sigmar(rr * u.kpc)) for rr in r_cent])
-    beta_target = np.array([float(df.beta(rr * u.kpc)) for rr in r_cent])
-    sig_t_target =  np.sqrt(2 * (1 - beta_target)) * sig_r_target
-    
-    # robust y-limits from the target plus a few sampled snapshots, so the
-    # animated curve does not run off the frame.
-    n_t = len(full_x)
-    sample_frames = sorted(set([0, n_t // 2, n_t - 1]))
-    samples = [stats_at(f) for f in sample_frames]
-
-    def _ylim(idx, target, pad=0.15, floor0=True):
-        vals = np.concatenate([target[np.isfinite(target)]] +
-                              [s[idx][np.isfinite(s[idx])] for s in samples])
-        lo, hi = np.min(vals), np.max(vals)
-        span = hi - lo
-        lo = 0.0 if floor0 else lo - pad * span
-        return lo, hi + pad * span
-
-    panels = [
-        dict(idx=0, target=sig_r_target,
-             ylabel=r'$\sigma_r$  [$\mathrm{km\,s^{-1}}$]',
-             outname='halo_sigma_r_profile.gif', ylim=_ylim(0, sig_r_target)),
-        dict(idx=1, target=sig_t_target,
-             ylabel=r'$\sigma_t$  [$\mathrm{km\,s^{-1}}$]',
-             outname='halo_sigma_t_profile.gif', ylim=_ylim(1, sig_t_target)),
-        dict(idx=2, target=beta_target,
-             ylabel=r'$\beta(r) = 1 - \sigma_t^2 / 2\sigma_r^2$',
-             outname='halo_beta_profile.gif',
-             ylim=(-2.0, 1.1)),
-    ]
-
-    for p in panels:
-        fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
-        ax.plot(r_cent, p['target'], color='gray', lw=4, alpha=1.0, zorder=1,
-                label='target')
-        line, = ax.plot([], [], color='tab:red', lw=2.5, marker='o', ms=4,
-                        zorder=2, label='simulation')
-        ax.set_xscale('log')
-        ax.set_xlabel('r [kpc]', fontsize=20)
-        ax.set_ylabel(p['ylabel'], fontsize=20)
-        ax.set_xlim(r_min, r_max)
-        ax.set_ylim(*p['ylim'])
-        title = ax.set_title('', fontsize=22)
-        ax.legend(fontsize=14)
-
-        idx = p['idx']
-
-        def update(frame, line=line, title=title, idx=idx):
-            frame = frame * skip
-            line.set_data(r_cent, stats_at(frame)[idx])
-            title.set_text(f't = {frame:.2f} Gyr')
-            return line, title
-
-        ani = animation.FuncAnimation(fig, update, frames=n_t // skip, blit=False)
-        ani.save(filepath + p['outname'], fps=fps)
-        plt.close(fig)
-
-
-# def make_virial_ratio_plot(sim, filepath, eps=0.01):
-#     '''
-#     Plot the global virial ratio 2T/|W| of the (isolated) halo versus time.
-#     T is the total kinetic energy and W = (1/2) sum_i m_i Phi_i the total
-#     gravitational potential energy from the particles' mutual self-gravity
-#     (falcON; the 1/2 avoids double-counting pairs). A self-gravitating system
-#     in equilibrium satisfies 2T + W = 0, i.e. 2T/|W| = 1, drawn as a dashed
-#     reference line. Pass the same eps used for the run so that W reflects the
-#     actual (softened) energy of the simulated system.
-#     '''
-#     virial = np.empty(len(sim.times))
-#     for t_idx in range(len(sim.times)):
-#         T = np.sum(sim.KE(t_idx))
-#         W = 0.5 * np.sum(sim.PE(t_idx, method='falcON', eps=eps))  # < 0
-#         virial[t_idx] = 2.0 * T / np.abs(W)
-
-#     fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
-#     ax.plot(sim.times, virial, color='tab:red', lw=2.5)
-#     ax.axhline(1.0, ls='--', color='gray', lw=1, label='virial equilibrium')
-#     ax.set_xlabel('Time [Gyr]', fontsize=20)
-#     ax.set_ylabel(r'$2T/|W|$', fontsize=20)
-#     ax.legend(fontsize=14)
-#     fig.savefig(filepath + 'virial_ratio.png', dpi=200, bbox_inches='tight')
-#     plt.close(fig)
-
-def make_gifs(path_to_results='results/'):
-    (x_mw_all, y_mw_all, z_mw_all,
-    vx_mw_all, vy_mw_all, vz_mw_all, 
-    vr_mw_all, vt_x_mw_all, vt_y_mw_all, vt_z_mw_all,
-    x_full_all, y_full_all, z_full_all,
-    vx_full_all, vy_full_all, vz_full_all, 
-    vr_full_all, vt_x_full_all, vt_y_full_all, vt_z_full_all,
-    r_mw_final, r_full_final, o_lmc_x, o_lmc_y, o_lmc_z) = load_results(path_to_results)
-    make_gif(x_full_all, y_full_all, z_full_all, o_lmc_x, o_lmc_y, o_lmc_z, 3, '', frames=20, bins=30)
 if __name__ == "__main__":
-<<<<<<< HEAD
-    make_plots()
-    #make_gifs()
-=======
     make_plots(file_ext='_plummer_radial')
     make_gifs(file_ext='_plummer_radial')
->>>>>>> temp
