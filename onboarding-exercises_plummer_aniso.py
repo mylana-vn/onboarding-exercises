@@ -478,10 +478,10 @@ def make_lmc_orbit(amp=1.5e11*u.Msun,a=10*u.kpc):
     o_lmc = Orbit.from_name("LMC")
     return lmc, o_lmc
 
-def integrate_lmc_backward(hq_df,o_lmc,mw_interp):
+def integrate_lmc_backward(hq_df,o_lmc,halo_potential):
     friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r).value)
     ts_bckwd = np.linspace(0,-3,200)*u.Gyr
-    o_lmc.integrate(ts_bckwd,[mw_interp,friction],method="dop853_c")
+    o_lmc.integrate(ts_bckwd,[halo_potential,friction],method="dop853_c")
 
 def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     o_lmc.plot(d1='t',d2='r')
@@ -489,10 +489,10 @@ def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     plt.savefig(filename)
     plt.close()
 
-def integrate_lmc_forward(o_lmc,lmc,mw_interp):
+def integrate_lmc_forward(o_lmc,lmc,halo_potential):
     lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
     ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
-    o_lmc.integrate(ts_fwd,[mw_interp,lmc_moving],method="dop853_c")
+    o_lmc.integrate(ts_fwd,[halo_potential,lmc_moving],method="dop853_c")
     return lmc_moving
 
 def plot_unperturbed_star_positions(ro,vo,hq_df,N,mw_interp,filename="stars_unperturbed.png"):
@@ -562,21 +562,14 @@ def plot_full_halo_response(stars_nif,ts_fwd,N_large,filename="full_halo_respons
     plt.savefig(filename)
     plt.close()
 
-def integrate_mw(ro,vo,stars_mw,mw_interp,N):
+def integrate_mw(stars_mw,halo_potential,N):
     ts_fwd = np.linspace(-3., 0., 21) * u.Gyr
-    r_mw = stars_mw.r(use_physical=True)
-    mask_mw = (r_mw.value>0.001) & (r_mw.value<10000.)
-    stars_mw = stars_mw[mask_mw]
-    stars_mw.turn_physical_on(ro=ro,vo=vo)
-    stars_mw.integrate(ts_fwd,mw_interp,method="dop853_c")
+    stars_mw.integrate(ts_fwd,halo_potential,method="dop853_c")
     return stars_mw
 
-def integrate_full(ro,vo,stars_full,mw_interp,lmc_moving,nif,N):
+def integrate_full(stars_full,halo_potential,lmc_moving,nif,N):
     ts_fwd = np.linspace(-3., 0., 21) * u.Gyr
-    r_full = stars_full.r(use_physical=True)
-    stars_full = stars_full[(r_full.value>0.001) & (r_full.value<10000)]
-    stars_full.turn_physical_on(ro=ro,vo=vo)
-    stars_full.integrate(ts_fwd, [mw_interp,lmc_moving,nif], method="dop853_c")
+    stars_full.integrate(ts_fwd, [halo_potential,lmc_moving,nif], method="dop853_c")
     return stars_full
 
 def get_coords(stars):
@@ -606,34 +599,12 @@ def create_modified_density(r_kpc,best_M,best_a):
     rho = (best_M / (2 * np.pi)) * best_a / (r_kpc * (r_kpc + best_a)**3)
     rho_r = rho * r_kpc
 
-    plt.loglog(r_kpc, rho, label="original density")
-    plt.loglog(r_kpc, rho_r, label="biased density")
-    plt.xlabel("r (kpc)")
-    plt.ylabel("density")
-    plt.legend()
-    plt.title("biased radial density check")
-    plt.savefig("density_check.png")
-    plt.close()
     return rho_r
 
 def get_normalized_enclosed_mass(r_kpc,rho_r):
     p_r = 4 * np.pi * rho_r * r_kpc**2
     cumulative = cumulative_trapezoid(p_r, r_kpc, initial=0)
     cdf = cumulative / cumulative[-1]
-
-    plt.loglog(r_kpc,cumulative)
-    plt.xlabel("r (kpc)")
-    plt.ylabel("cumulative enclosed mass")
-    plt.title("cumulative enclosed mass check")
-    plt.savefig("cumulative_mass_check.png")
-    plt.close()
-
-    plt.semilogx(r_kpc, cdf)
-    plt.xlabel("r (kpc)")
-    plt.ylabel("normalized enclosed mass")
-    plt.title("cdf")
-    plt.savefig("cdf_check.png")
-    plt.close()
 
     return cdf
 
@@ -642,15 +613,6 @@ def interpolate_samples(cdf,r_kpc,N):
 
     u_samples = np.random.uniform(0,1,N)
     r_samples = inverse_cdf(u_samples)
-
-    plt.figure()
-    plt.hist(r_samples, bins=np.logspace(np.log10(0.1), np.log10(300), 50))
-    plt.xscale('log')
-    plt.xlabel('r (kpc)')
-    plt.ylabel('count')
-    plt.title('Sampled radii distribution')
-    plt.savefig('sampled_radii_check.png')
-    plt.close()
 
     return r_samples
 
@@ -664,11 +626,11 @@ def sample_random_angles(r_samples,N):
 
     return R_samples, z_samples
 
-def make_plottable_lmc_orbit(hq_df,mw_interp):
+def make_plottable_lmc_orbit(hq_df,halo_potential):
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
     o_lmc_plot = Orbit.from_name("LMC")
     friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=lambda r: hq_df.sigmar(r).value)
-    o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method = "dop853_c")
+    o_lmc_plot.integrate(ts_bckwd, [halo_potential, friction], method = "dop853_c")
 
     return o_lmc_plot
 
@@ -719,10 +681,12 @@ def main(n=50_000):
     np.save('results/o_lmc_z_plummer_aniso', o_lmc_plot.z(ts_bckwd).value[::-1])
     # unbiased sample
 
+    np.random.seed(0)
     stars_mw_sample = hq_df.sample(n=n)
+    np.random.seed(0)
     stars_full_sample = hq_df.sample(n=n)
 
-    stars_mw = integrate_mw(ro,vo,stars_mw_sample,halo_potential,n) # was mw_interp
+    stars_mw = integrate_mw(stars_mw_sample,halo_potential,n) # was mw_interp
     r_mw_final = (np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)).value
 
     np.save('results/r_mw_final_plummer_aniso', r_mw_final)
@@ -738,10 +702,9 @@ def main(n=50_000):
     vel_mw_cyl = get_vr_vt(*pos_mw, *vel_mw_cart)
     np.save('results/vel_mw_cyl_plummer_aniso', vel_mw_cyl)
 
-    
-    stars_full = integrate_full(ro,vo,stars_full_sample,halo_potential,lmc_moving,nif,n) # was mw_interp
-    
+    stars_full = integrate_full(stars_full_sample,halo_potential,lmc_moving,nif,n) # was mw_interp
     r_full_final = (np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)).value
+
     np.save('results/r_full_final_plummer_aniso', r_full_final)
     
     pos_full = get_coords(stars_full)

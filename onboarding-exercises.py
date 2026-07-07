@@ -30,9 +30,7 @@ from galpy.df import (
 from scipy.optimize import minimize
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-import time
-from plotting import make_gif
-
+import copy
 
 # Exercise 1
 def plot_mw_vcirc(R0,ro,vo,filename="mw_vcirc.png"):
@@ -232,10 +230,18 @@ def plot_compare_orbits_vT(vT_multiplier_1,vT_multiplier_2, ts = np.linspace(0.0
     plt.close()
 
 # Exercise 3 
-def make_halo_potential(ro,vo,r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc):
+def make_halo_potential(ro,vo):
     # Compute Menc(< r) for MWPotential2014 on a logarithmic grid from 0.1 to 300 kpc
 
-    menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True).value for r in r_grid])
+    mwp = copy.deepcopy(MWPotential2014)
+    mwp[2] *= 1.5
+    mwp.turn_physical_on(ro=ro,vo=vo)
+
+    r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc 
+
+    # menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True).value for r in r_grid])
+
+    menc_MW = np.array([mass(mwp, r, ro=ro, vo=vo, use_physical=True).value for r in r_grid])
     # Find the best-fit (M,a)
 
     def objective(params):
@@ -479,10 +485,10 @@ def make_lmc_orbit(mass=1.5e11*u.Msun,a=10*u.kpc):
 
     return lmc, o_lmc
 
-def integrate_lmc_backward(hq_df,o_lmc,mw_interp):
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r).value)
+def integrate_lmc_backward(hq_df,o_lmc,halo_potential):
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r,use_physical=False))
     ts_bckwd = np.linspace(0,-3,200)*u.Gyr
-    o_lmc.integrate(ts_bckwd,[mw_interp,friction],method="dop853_c")
+    o_lmc.integrate(ts_bckwd,[halo_potential,friction],method="dop853_c") 
 
 def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     o_lmc.plot(d1='t',d2='r')
@@ -490,10 +496,10 @@ def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     plt.savefig(filename)
     plt.close()
 
-def integrate_lmc_forward(o_lmc,lmc,mw_interp):
+def integrate_lmc_forward(o_lmc,lmc,halo_potential):
     lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
     ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
-    o_lmc.integrate(ts_fwd,[mw_interp,lmc_moving],method="dop853_c")
+    o_lmc.integrate(ts_fwd,[halo_potential,lmc_moving],method="dop853_c")
     return lmc_moving
 
 def plot_unperturbed_star_positions(ro,vo,hq_df,N,mw_interp,filename="stars_unperturbed.png"):
@@ -563,49 +569,25 @@ def plot_full_halo_response(stars_nif,ts_fwd,N_large,filename="full_halo_respons
     plt.savefig(filename)
     plt.close()
 
-def integrate_mw(ro,vo,stars_mw,mw_interp,N):
-<<<<<<< HEAD
-    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
-=======
+def integrate_mw(stars_mw,halo_potential,N):
     ts_fwd = np.linspace(-3., 0., 21) * u.Gyr
-    r_mw = stars_mw.r(use_physical=True)
-    mask_mw = (r_mw.value>0.001) & (r_mw.value<10000.)
-    stars_mw = stars_mw[mask_mw]
->>>>>>> temp
-    stars_mw.turn_physical_on(ro=ro,vo=vo)
-    stars_mw.integrate(ts_fwd,mw_interp,method="dop853_c")
+    stars_mw.integrate(ts_fwd,halo_potential,method="dop853_c")
     return stars_mw
 
-def integrate_full(ro,vo,stars_full,mw_interp,lmc_moving,nif,N):
-<<<<<<< HEAD
-    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
-    stars_full.integrate(ts_fwd, [mw_interp, lmc_moving], method="dop853_c",progressbar=True)
-    return stars_full
-
-def get_coords(stars):
-    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
-=======
+def integrate_full(stars_full,halo_potential,lmc_moving,nif,N):
     ts_fwd = np.linspace(-3., 0., 21) * u.Gyr
-    r_full = stars_full.r(use_physical=True)
-    stars_full = stars_full[(r_full.value>0.001) & (r_full.value<10000)]
-    stars_full.turn_physical_on(ro=ro,vo=vo)
-    stars_full.integrate(ts_fwd, [mw_interp,lmc_moving,nif], method="dop853_c")
+    stars_full.integrate(ts_fwd, [halo_potential,lmc_moving,nif], method="dop853_c")
     return stars_full
 
 def get_coords(stars):
     ts_fwd = np.linspace(-3., 0., 21) * u.Gyr
->>>>>>> temp
     x = stars.x(ts_fwd).value
     y = stars.y(ts_fwd).value
     z = stars.z(ts_fwd).value
     return x,y,z
 
 def get_velocities(stars):
-<<<<<<< HEAD
-    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
-=======
     ts_fwd = np.linspace(-3., 0., 21) * u.Gyr
->>>>>>> temp
     vx = stars.vx(ts_fwd).value
     vy = stars.vy(ts_fwd).value
     vz = stars.vz(ts_fwd).value
@@ -632,7 +614,7 @@ def create_modified_density(r_kpc,best_M,best_a):
     # plt.title("biased radial density check")
     # plt.savefig("density_check.png")
     # plt.close()
-
+    
     return rho_r
 
 def get_normalized_enclosed_mass(r_kpc,rho_r):
@@ -662,14 +644,14 @@ def interpolate_samples(cdf,r_kpc,N):
     u_samples = np.random.uniform(0,1,N)
     r_samples = inverse_cdf(u_samples)
 
-    plt.figure()
-    plt.hist(r_samples, bins=np.logspace(np.log10(0.1), np.log10(300), 50))
-    plt.xscale('log')
-    plt.xlabel('r (kpc)')
-    plt.ylabel('count')
-    plt.title('Sampled radii distribution')
-    plt.savefig('sampled_radii_check.png')
-    plt.close()
+    # plt.figure()
+    # plt.hist(r_samples, bins=np.logspace(np.log10(0.1), np.log10(300), 50))
+    # plt.xscale('log')
+    # plt.xlabel('r (kpc)')
+    # plt.ylabel('count')
+    # plt.title('Sampled radii distribution')
+    # plt.savefig('sampled_radii_check.png')
+    # plt.close()
 
     return r_samples
 
@@ -684,97 +666,14 @@ def sample_random_angles(r_samples,N):
     return R_samples, z_samples
 
 def make_plottable_lmc_orbit(hq_df,mw_interp):
-    ts_bckwd = np.linspace(0, -3, 2001) * u.Gyr
+    ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
     o_lmc_plot = Orbit.from_name("LMC")
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=lambda r: hq_df.sigmar(r).value)
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=lambda r: hq_df.sigmar(r, use_physical=False))
     o_lmc_plot.integrate(ts_bckwd, [mw_interp, friction], method = "dop853_c")
 
     return o_lmc_plot
 
-<<<<<<< HEAD
-def save_the_pandas(o_lmc, stars_full, stars_mw, filepath):
-    import pandas as pd
-    ts_fwd = np.linspace(0., 3., 2001) * u.Gyr
-    r_mw_final = (np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)).value
-
-    # print("saving r_mw_final")
-    # np.save('results/r_mw_final', r_mw_final[::100])
-    x_mw, y_mw, z_mw = get_coords(stars_mw)
-    #pos_mw = get_coords(stars_mw)
-    # print("saving pos_mw")
-    # np.save('results/pos_mw', pos_mw[:, ::100])
-
-    vx_mw, vy_mw, vz_mw = get_velocities(stars_mw)
-    #vel_mw_cart = get_velocities(stars_mw)
-    # print("saving vel_mw_cart")
-    # np.save('results/vel_mw_cart', vel_mw_cart[:,::100])
-    
-    vr_mw, vt_x_mw, vt_y_mw, vt_z_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
-    #vel_mw_cyl = get_vr_vt(*pos_mw, *vel_mw_cart)
-    # np.save('results/vel_mw_cyl', vel_mw_cyl[:,::100])
-    ts_fws = stars_full.time()
-
-    r_full_final = (np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)).value
-    # np.save('results/r_full_final', r_full_final[::100])
-    
-    x_full, y_full, z_full = get_coords(stars_full)
-    # np.save('results/pos_full', pos_full[:, ::100])
-
-    vx_full, vy_full, vz_full = get_velocities(stars_full)
-    #vel_full_cart = get_velocities(stars_full)
-    # np.save('results/vel_full_cart', vel_full='_cart[:, ::100])
-
-    vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
-    #vel_full_cyl = get_vr_vt(*pos_full, *vel_full_cart)
-
-    sat_data = []
-    for i, t in enumerate(o_lmc.time()[::100]):
-        x = np.ravel(o_lmc.x(t))
-        y = np.ravel(o_lmc.y(t))
-        z = np.ravel(o_lmc.z(t))
-        vx = np.ravel(o_lmc.vx(t))
-        vy = np.ravel(o_lmc.vy(t))
-        vz = np.ravel(o_lmc.vz(t))
-        for i in range(len(x)):
-            sat_data.append({'time': o_lmc.time()[i], 'x': x[i], 'y': y[i], 'z': z[i], 'vx': vx[i], 'vy': vy[i], 'vz': vz[i]})
-            sat_df = pd.DataFrame(sat_data)
-        sat_df.to_csv(filepath+'lmc_data.csv', index=False)
-
-    stars_full_data = []
-    for i, t in enumerate(stars_full.time()[::100]):
-        x = np.ravel(stars_full.x(t))
-        y = np.ravel(stars_full.y(t))
-        z = np.ravel(stars_full.z(t))
-        vx = np.ravel(stars_full.vx(t))
-        vy = np.ravel(stars_full.vy(t))
-        vz = np.ravel(stars_full.vz(t))
-        for i in range(len(x)):
-            stars_full_data.append({'time': stars_full.time()[i], 'x': x[i], 'y': y[i], 'z': z[i], 'vx': vx[i], 'vy': vy[i], 'vz': vz[i], 
-                                    'r':r_full_final[i], 'vr': vr_full[i], 'vt_x': vt_x_full[i], 'vt_y': vt_y_full[i], 'vt_z':vt_z_full[i]})
-    halo_df = pd.DataFrame(stars_full_data)
-    halo_df.to_csv(filepath+'stars_full_data.csv', index=False)
-
-    stars_mw_data = []
-    for i, t in enumerate(stars_full.time()[::100]):
-        x = np.ravel(stars_mw.x(t))
-        y = np.ravel(stars_mw.y(t))
-        z = np.ravel(stars_mw.z(t))
-        vx = np.ravel(stars_mw.vx(t))
-        vy = np.ravel(stars_mw.vy(t))
-        vz = np.ravel(stars_mw.vz(t))
-        for i in range(len(x)):
-            stars_full_data.append({'time': stars_mw.time()[i], 'x': x[i], 'y': y[i], 'z': z[i], 'vx': vx[i], 'vy': vy[i], 'vz': vz[i],
-                                    'r':r_mw_final[i], 'vz': vr_mw[i], 'vt_z': vt_x_mw[i], 'vt_z': vt_y_mw[i], 'vt_z':vt_z_mw[i]})
-    mw_df = pd.DataFrame(stars_mw_data)
-    mw_df.to_csv(filepath+'stars_full_data.csv', index=False)
-    
-
-    np.save(filepath+'times', stars_mw.time().value)
-
-def main(n=50000):
-=======
 def main(n=50_000):
->>>>>>> temp
     gomp = ctypes.CDLL("libgomp.so.1")
     gomp.omp_set_num_threads(8)
     
@@ -786,6 +685,8 @@ def main(n=50_000):
     MWPotential2014.turn_physical_on(ro=ro,vo=vo)
 
     halo_potential, best_M, best_a = make_halo_potential(ro,vo)
+    np.save('results/best_M', best_M)
+    np.save('results/best_a', best_a)
     
     # mw_interp = make_interpolated_potential(ro)
 
@@ -814,108 +715,51 @@ def main(n=50_000):
     az_int = lambda t: np.interp(t,t_galpy,az)
     
     nif = NonInertialFrameForce(a0=[ax_int,ay_int,az_int])
-<<<<<<< HEAD
-    ts_bckwd = np.linspace(0, -3, 2001) * u.Gyr
-    o_lmc_plot = make_plottable_lmc_orbit(hq_df,halo_potential) # was mw_interp
-    # np.save('results/o_lmc_x', o_lmc_plot.x(ts_bckwd[::-1]).value[::100])
-    # np.save('results/o_lmc_y', o_lmc_plot.y(ts_bckwd[::-1]).value[::100])
-    # np.save('results/o_lmc_z', o_lmc_plot.z(ts_bckwd[::-1]).value[::100])
-=======
     ts_bckwd = np.linspace(0, -3, 21) * u.Gyr
     o_lmc_plot = make_plottable_lmc_orbit(hq_df,halo_potential) # was mw_interp
     np.save('results/o_lmc_x', o_lmc_plot.x(ts_bckwd).value[::-1])
     np.save('results/o_lmc_y', o_lmc_plot.y(ts_bckwd).value[::-1])
     np.save('results/o_lmc_z', o_lmc_plot.z(ts_bckwd).value[::-1])
->>>>>>> temp
     # unbiased sample
 
+    np.random.seed(0)
     stars_mw_sample = hq_df.sample(n=n)
+    np.random.seed(0)
     stars_full_sample = hq_df.sample(n=n)
 
-    stars_mw = integrate_mw(ro,vo,stars_mw_sample,halo_potential,n) # was mw_interp
-   
-    stars_full = integrate_full(ro,vo,stars_full_sample,halo_potential,lmc_moving,nif,n) # was mw_interp
+    stars_mw = integrate_mw(stars_mw_sample,halo_potential,n) # was mw_interp
     r_mw_final = (np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)).value
 
-    # print("saving r_mw_final")
-    # np.save('results/r_mw_final', r_mw_final[::100])
-    x_mw, y_mw, z_mw = get_coords(stars_mw)
-    #pos_mw = get_coords(stars_mw)
-    # print("saving pos_mw")
-    # np.save('results/pos_mw', pos_mw[:, ::100])
+    np.save('results/r_mw_final', r_mw_final)
+    #x_mw, y_mw, z_mw = get_coords(stars_mw)
+    pos_mw = get_coords(stars_mw)
+    np.save('results/pos_mw', pos_mw)
 
-    vx_mw, vy_mw, vz_mw = get_velocities(stars_mw)
-    #vel_mw_cart = get_velocities(stars_mw)
-    # print("saving vel_mw_cart")
-    # np.save('results/vel_mw_cart', vel_mw_cart[:,::100])
+    #vx_mw, vy_mw, vz_mw = get_velocities(stars_mw)
+    vel_mw_cart = get_velocities(stars_mw)
+    np.save('results/vel_mw_cart', vel_mw_cart)
     
-    vr_mw, vt_x_mw, vt_y_mw, vt_z_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
-    #vel_mw_cyl = get_vr_vt(*pos_mw, *vel_mw_cart)
-    # np.save('results/vel_mw_cyl', vel_mw_cyl[:,::100])
-    ts_fws = stars_full.time()
+    # vr_mw, vt_x_mw, vt_y_mw, vt_z_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
+    vel_mw_cyl = get_vr_vt(*pos_mw, *vel_mw_cart)
+    np.save('results/vel_mw_cyl', vel_mw_cyl)
 
-<<<<<<< HEAD
-=======
-    stars_full = integrate_full(ro,vo,stars_full_sample,halo_potential,lmc_moving,nif,n) # was mw_interp
-    
->>>>>>> temp
+    stars_full = integrate_full(stars_full_sample,halo_potential,lmc_moving,nif,n) # was mw_interp
     r_full_final = (np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)).value
-    # np.save('results/r_full_final', r_full_final[::100])
     
-<<<<<<< HEAD
-    x_full, y_full, z_full = get_coords(stars_full)
-    # np.save('results/pos_full', pos_full[:, ::100])
-=======
-    # x_full, y_full, z_full
+    np.save('results/r_full_final', r_full_final)
+    
     pos_full = get_coords(stars_full)
     np.save('results/pos_full', pos_full)
->>>>>>> temp
 
-    vx_full, vy_full, vz_full = get_velocities(stars_full)
-    #vel_full_cart = get_velocities(stars_full)
-    # np.save('results/vel_full_cart', vel_full='_cart[:, ::100])
+    #vx_full, vy_full, vz_full = get_velocities(stars_full)
+    vel_full_cart = get_velocities(stars_full)
+    np.save('results/vel_full_cart', vel_full_cart)
 
-<<<<<<< HEAD
-    vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
-    
-    n = len(x_mw)
-    # unbiased sample
-
-    # plot_radial_density_comparison(r_mw_final,r_full_final,n)
-    
-    # plot_density_slices(20,x_mw, y_mw, z_mw, x_full, y_full, z_full, o_lmc_y, o_lmc_z,n)
-    # v_disp_mw, v_disp_full, counts_mw, counts_full = plot_vdisp_profile_comparison(vr_mw,vr_full,r_mw_final,r_full_final,n)
-    # vt_disp_mw, vt_disp_full, counts_t_mw, counts_t_full = plot_tangential_disp_comparison(vt_x_mw,vt_y_mw,vt_z_mw, \
-    #     vt_x_full,vt_y_full,vt_z_full,r_mw_final,r_full_final,n)
-    # plot_orbital_anisotropy_comparison(v_disp_mw,vt_disp_mw,counts_mw,counts_t_mw,v_disp_full,vt_disp_full,counts_full,counts_t_full,n)
-
-    # sigma_r_mw_2d, sigma_r_full_2d, sigma_t_mw_2d, sigma_t_full_2d, beta_mw_2d, beta_full_2d = \
-    #       get_dispersion_slices(20,x_mw,y_mw,z_mw,vr_mw,vt_x_mw,vt_y_mw,vt_z_mw,x_full,y_full,z_full,vr_full,vt_x_full,vt_y_full,vt_z_full)
-
-    # plot_vdisp_slices(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_y, o_lmc_z,n)
-    # plot_tdisp_slices(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_y, o_lmc_z,n)
-    # plot_oa_slices(20,beta_mw_2d,beta_full_2d,o_lmc_y, o_lmc_z,n)
-
-    # plot_density_ratio(20,x_mw, y_mw, z_mw, x_full, y_full, z_full,o_lmc_y, o_lmc_z,n)
-    # plot_radial_dispersion_ratio(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_y, o_lmc_z,n)
-    # plot_tangential_dispersion_ratio(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_y, o_lmc_z,n)
-    
-    # plot_density_difference(20,x_mw, y_mw, z_mw, x_full, y_full, z_full,o_lmc_y, o_lmc_z,n)
-    # plot_radial_dispersion_difference(20,sigma_r_mw_2d,sigma_r_full_2d,o_lmc_y, o_lmc_z,n)
-    # plot_tangential_dispersion_difference(20,sigma_t_mw_2d,sigma_t_full_2d,o_lmc_y, o_lmc_z,n)
-    o_lmc_x, o_lmc_y, o_lmc_z=get_coords(o_lmc_plot)
-    make_gif(x_full, y_full, o_lmc_x, o_lmc_y, o_lmc_z, 3, '', frames=20, bins=30)
-
-    #save_the_pandas(o_lmc_plot, stars_full, stars_mw,filepath='')
-    # np.save('results/vel_full_cyl', vel_full_cyl[:, ::100])
-    # plot_radial_density_comparison(r_mw_final,r_full_final,n)
-=======
     #vr_full, vt_x_full, vt_y_full, vt_z_full = get_vr_vt(x_full,y_full,z_full,vx_full,vy_full,vz_full)
     vel_full_cyl = get_vr_vt(*pos_full, *vel_full_cart)
     np.save('results/vel_full_cyl', vel_full_cyl)
 
     np.save('results/times', ts_fwd.value)
->>>>>>> temp
     
 if __name__ == "__main__":
     main()

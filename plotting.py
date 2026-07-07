@@ -968,7 +968,7 @@ def make_kinematics_profile_gifs(full_x, full_y, full_z, full_vx, full_vy, full_
 
 def plot_halo_response_slice(full_x, full_y, full_z, lmc_y, lmc_z, times, tind=-1,
                              slice_halfwidth=20.0, bins=100, extent=(-300, 300, -300, 300),
-                             filename="halo_response_slice_plummer_radial.png"):
+                             filename="halo_response_slice.png"):
     '''
     Static map of the halo density change in a slab around the y-z plane, between the
     initial snapshot and snapshot tind. The initial slab is centred on x=0; the final
@@ -1104,5 +1104,5 @@ def make_gifs(path_to_results='results/', output_path='outputs/anims/', file_ext
 
 
 if __name__ == "__main__":
-    make_plots(file_ext='_plummer_radial')
-    make_gifs(file_ext='_plummer_radial')
+    make_plots(file_ext='')
+    make_gifs(file_ext='')
