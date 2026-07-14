@@ -30,7 +30,7 @@ from galpy.df import (
 from scipy.optimize import minimize
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-import time
+import copy
 
 
 # Exercise 1
@@ -231,10 +231,17 @@ def plot_compare_orbits_vT(vT_multiplier_1,vT_multiplier_2, ts = np.linspace(0.0
     plt.close()
 
 # Exercise 3 
-def make_halo_potential(ro,vo,r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc):
+def make_halo_potential(ro,vo):
     # Compute Menc(< r) for MWPotential2014 on a logarithmic grid from 0.1 to 300 kpc
 
-    menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True).value for r in r_grid])
+    mwp = copy.deepcopy(MWPotential2014)
+    mwp[2] *= 1.5
+    mwp.turn_physical_on(ro=ro,vo=vo)
+
+    r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc
+
+    menc_MW = np.array([mass(mwp, r, ro=ro, vo=vo, use_physical=True).value for r in r_grid])
+
     # Find the best-fit (M,a)
 
     def objective(params):
@@ -479,7 +486,7 @@ def make_lmc_orbit(mass=1.5e11*u.Msun,a=10*u.kpc):
     return lmc, o_lmc
 
 def integrate_lmc_backward(hq_df,o_lmc,halo_potential):
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r).value)
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r,use_physical=False))
     ts_bckwd = np.linspace(0,-3,200)*u.Gyr
     o_lmc.integrate(ts_bckwd,[halo_potential,friction],method="dop853_c")
 

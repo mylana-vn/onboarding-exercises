@@ -31,7 +31,7 @@ from galpy.df import (
 from scipy.optimize import minimize
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-import time
+import copy
 
 
 # Exercise 1
@@ -232,10 +232,16 @@ def plot_compare_orbits_vT(vT_multiplier_1,vT_multiplier_2, ts = np.linspace(0.0
     plt.close()
 
 # Exercise 3 
-def make_halo_potential(ro,vo,r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc):
+def make_halo_potential(ro,vo):
     # Compute Menc(< r) for MWPotential2014 on a logarithmic grid from 0.1 to 300 kpc
 
-    menc_MW = np.array([mass(MWPotential2014, r, ro=ro, vo=vo, use_physical=True).value for r in r_grid])
+    mwp = copy.deepcopy(MWPotential2014)
+    mwp[2] *= 1.5
+    mwp.turn_physical_on(ro=ro,vo=vo)
+
+    r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc 
+
+    menc_MW = np.array([mass(mwp, r, ro=ro, vo=vo, use_physical=True).value for r in r_grid])
     # Find the best-fit (M,a)
 
     def objective(params):
@@ -479,7 +485,7 @@ def make_lmc_orbit(amp=1.5e11*u.Msun,a=10*u.kpc):
     return lmc, o_lmc
 
 def integrate_lmc_backward(hq_df,o_lmc,halo_potential):
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r).value)
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r,use_physical=False))
     ts_bckwd = np.linspace(0,-3,200)*u.Gyr
     o_lmc.integrate(ts_bckwd,[halo_potential,friction],method="dop853_c")
 
@@ -489,10 +495,10 @@ def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     plt.savefig(filename)
     plt.close()
 
-def integrate_lmc_forward(o_lmc,lmc,halo_potential):
+def make_moving_object_potential(o_lmc,lmc,halo_potential):
     lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
-    ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
-    o_lmc.integrate(ts_fwd,[halo_potential,lmc_moving],method="dop853_c")
+    # ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
+    # o_lmc.integrate(ts_fwd,[halo_potential,lmc_moving],method="dop853_c")
     return lmc_moving
 
 def plot_unperturbed_star_positions(ro,vo,hq_df,N,mw_interp,filename="stars_unperturbed.png"):
@@ -626,11 +632,12 @@ def sample_random_angles(r_samples,N):
 
     return R_samples, z_samples
 
-def make_plottable_lmc_orbit(hq_df,halo_potential):
+def make_plottable_lmc_orbit(hq_df,halo_potential,lmc_potential,rhm):
     ts_bckwd = np.linspace(0, -3, 200) * u.Gyr
     o_lmc_plot = Orbit.from_name("LMC")
-    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=lambda r: hq_df.sigmar(r).value)
-    o_lmc_plot.integrate(ts_bckwd, [halo_potential, friction], method = "dop853_c")
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=lambda r: 
+                                                   hq_df.sigmar(r, use_physical=False), rhm=rhm, dens=halo_potential)
+    o_lmc_plot.integrate(ts_bckwd, [halo_potential, lmc_potential, friction], method = "dop853_c")
 
     return o_lmc_plot
 
@@ -655,7 +662,7 @@ def main(n=50_000):
     integrate_lmc_backward(hq_df,o_lmc,halo_potential) # was mw_interp
     plot_galactocentric_distance(o_lmc)
     
-    lmc_moving = integrate_lmc_forward(o_lmc,lmc,halo_potential) # was mw_interp
+    lmc_moving = make_moving_object_potential(o_lmc,lmc,halo_potential) # was mw_interp
     
     loc_origin = 1e-4
     
@@ -675,7 +682,7 @@ def main(n=50_000):
     
     nif = NonInertialFrameForce(a0=[ax_int,ay_int,az_int])
     ts_bckwd = np.linspace(0, -3, 21) * u.Gyr
-    o_lmc_plot = make_plottable_lmc_orbit(hq_df,halo_potential) # was mw_interp
+    o_lmc_plot = make_plottable_lmc_orbit(hq_df,halo_potential,10*u.kpc) # was mw_interp
     np.save('results/o_lmc_x_plummer_radial', o_lmc_plot.x(ts_bckwd).value[::-1])
     np.save('results/o_lmc_y_plummer_radial', o_lmc_plot.y(ts_bckwd).value[::-1])
     np.save('results/o_lmc_z_plummer_radial', o_lmc_plot.z(ts_bckwd).value[::-1])
