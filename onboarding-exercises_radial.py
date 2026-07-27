@@ -689,11 +689,6 @@ def main(n=50_000):
     
     # radially biased sample
 
-    np.random.seed(0)
-    stars_mw_sample = hq_df.sample(n=n)
-    np.random.seed(0)
-    stars_full_sample = hq_df.sample(n=n)
-
     r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc
     r_kpc = r_grid.value
 

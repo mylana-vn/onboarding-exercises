@@ -484,9 +484,9 @@ def make_lmc_orbit(amp=1.5e11*u.Msun,a=10*u.kpc):
     o_lmc = Orbit.from_name("LMC")
     return lmc, o_lmc
 
-def integrate_lmc_backward(hq_df,o_lmc,halo_potential):
+def integrate_lmc_backward(hq_df,o_lmc,halo_potential,lmc_potential):
     friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r,use_physical=False))
-    ts_bckwd = np.linspace(0,-3,200)*u.Gyr
+    ts_bckwd = np.linspace(0,-3,2001)*u.Gyr
     o_lmc.integrate(ts_bckwd,[halo_potential,friction],method="dop853_c")
 
 def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
@@ -495,10 +495,11 @@ def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     plt.savefig(filename)
     plt.close()
 
-def make_moving_object_potential(o_lmc,lmc,halo_potential):
+def integrate_lmc_forward(hq_df,o_lmc,lmc,halo_potential):
     lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
-    # ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
-    # o_lmc.integrate(ts_fwd,[halo_potential,lmc_moving],method="dop853_c")
+    friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r,use_physical=False))
+    ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
+    o_lmc.integrate(ts_fwd,[halo_potential, friction],method="dop853_c")
     return lmc_moving
 
 def plot_unperturbed_star_positions(ro,vo,hq_df,N,mw_interp,filename="stars_unperturbed.png"):
@@ -637,11 +638,11 @@ def make_plottable_lmc_orbit(hq_df,halo_potential,lmc_potential,rhm):
     o_lmc_plot = Orbit.from_name("LMC")
     friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=lambda r: 
                                                    hq_df.sigmar(r, use_physical=False), rhm=rhm, dens=halo_potential)
-    o_lmc_plot.integrate(ts_bckwd, [halo_potential, lmc_potential, friction], method = "dop853_c")
+    o_lmc_plot.integrate(ts_bckwd, [halo_potential, friction], method = "dop853_c")
 
     return o_lmc_plot
 
-def main(n=50_000):
+def main(n=250_000):
     gomp = ctypes.CDLL("libgomp.so.1")
     gomp.omp_set_num_threads(8)
     
@@ -653,16 +654,19 @@ def main(n=50_000):
     MWPotential2014.turn_physical_on(ro=ro,vo=vo)
 
     halo_potential, best_M, best_a = make_halo_potential(ro,vo)
+    np.save('results/best_M', best_M)
+    np.save('results/best_a', best_a)
     
     # mw_interp = make_interpolated_potential(ro)
 
     hq_df, orbits = sample_halo(halo_potential,n)
     
     lmc, o_lmc = make_lmc_orbit()
-    integrate_lmc_backward(hq_df,o_lmc,halo_potential) # was mw_interp
+    lmc.turn_physical_on(ro=ro,vo=vo)
+    integrate_lmc_backward(hq_df,o_lmc,halo_potential,lmc) # was mw_interp
     plot_galactocentric_distance(o_lmc)
     
-    lmc_moving = make_moving_object_potential(o_lmc,lmc,halo_potential) # was mw_interp
+    lmc_moving = integrate_lmc_forward(hq_df,o_lmc,lmc,halo_potential) # was mw_interp
     
     loc_origin = 1e-4
     

@@ -488,6 +488,7 @@ def integrate_lmc_backward(hq_df,o_lmc,halo_potential, lmc_potential):
     ts_bckwd = np.linspace(0,-3,200)*u.Gyr
 
     o_lmc.integrate(ts_bckwd,[halo_potential, lmc_potential, friction],method="dop853_c") 
+    return o_lmc
 
 def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     o_lmc.plot(d1='t',d2='r')
@@ -496,9 +497,9 @@ def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     plt.close()
 
 def integrate_lmc_forward(o_lmc,lmc,halo_potential):
-    lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
     ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
-    #o_lmc.integrate(ts_fwd,[halo_potential, lmc_moving],method="dop853_c")
+    o_lmc.integrate(ts_fwd,[halo_potential, lmc_moving],method="dop853_c")
+    lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
     return lmc_moving
 
 def plot_unperturbed_star_positions(ro,vo,hq_df,N,mw_interp,filename="stars_unperturbed.png"):
@@ -694,7 +695,8 @@ def main(n=1_000):
     
     lmc, o_lmc = make_lmc_orbit()
     lmc.turn_physical_on(ro=ro, vo=vo)
-    integrate_lmc_backward(hq_df,o_lmc,halo_potential, lmc) # was mw_interp
+    o_lmc.turn_physical_on(ro=ro, vo=vo)
+    o_lmc = integrate_lmc_backward(hq_df,o_lmc,halo_potential, lmc) # was mw_interp
     plot_galactocentric_distance(o_lmc)
     
     lmc_moving = integrate_lmc_forward(o_lmc, lmc, halo_potential) # was mw_interp

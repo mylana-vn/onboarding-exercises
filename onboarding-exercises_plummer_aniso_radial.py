@@ -31,7 +31,7 @@ from galpy.df import (
 from scipy.optimize import minimize
 from scipy.integrate import cumulative_trapezoid
 from scipy.interpolate import interp1d
-import time
+import copy
 
 
 # Exercise 1
@@ -702,9 +702,9 @@ def main(n=50_000):
     R_samples, z_samples = sample_random_angles(r_samples,n)
 
     np.random.seed(0)
-    stars_mw_sample = hq_df.sample(n=n)
+    stars_mw_sample = hq_df.sample(n=n,R=R_samples*u.kpc,z=z_samples*u.kpc)
     np.random.seed(0)
-    stars_full_sample = hq_df.sample(n=n)
+    stars_full_sample = hq_df.sample(n=n,R=R_samples*u.kpc,z=z_samples*u.kpc)
 
     stars_mw = integrate_mw(stars_mw_sample,halo_potential,n) # was mw_interp
     r_mw_final = (np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)).value

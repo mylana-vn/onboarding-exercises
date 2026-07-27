@@ -484,7 +484,7 @@ def make_lmc_orbit(amp=1.5e11*u.Msun,a=10*u.kpc):
     o_lmc = Orbit.from_name("LMC")
     return lmc, o_lmc
 
-def integrate_lmc_backward(hq_df,o_lmc,halo_potential):
+def integrate_lmc_backward(hq_df,o_lmc,halo_potential,lmc_potential):
     friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11* u.Msun,sigmar=lambda r: hq_df.sigmar(r,use_physical=False))
     ts_bckwd = np.linspace(0,-3,200)*u.Gyr
     o_lmc.integrate(ts_bckwd,[halo_potential,friction],method="dop853_c")
@@ -495,10 +495,10 @@ def plot_galactocentric_distance(o_lmc,filename="galactocentric_distance.png"):
     plt.savefig(filename)
     plt.close()
 
-def make_moving_object_potential(o_lmc,lmc,halo_potential):
+def integrate_lmc_forward(o_lmc,lmc,halo_potential):
     lmc_moving = MovingObjectPotential(o_lmc,pot=lmc)
-    # ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
-    # o_lmc.integrate(ts_fwd,[halo_potential,lmc_moving],method="dop853_c")
+    ts_fwd = np.linspace(-3., 0., 2001) * u.Gyr
+    o_lmc.integrate(ts_fwd,[halo_potential,lmc_moving],method="dop853_c")
     return lmc_moving
 
 def plot_unperturbed_star_positions(ro,vo,hq_df,N,mw_interp,filename="stars_unperturbed.png"):
@@ -637,11 +637,11 @@ def make_plottable_lmc_orbit(hq_df,halo_potential,lmc_potential,rhm):
     o_lmc_plot = Orbit.from_name("LMC")
     friction = ChandrasekharDynamicalFrictionForce(GMs=1.5e11 * u.Msun,sigmar=lambda r: 
                                                    hq_df.sigmar(r, use_physical=False), rhm=rhm, dens=halo_potential)
-    o_lmc_plot.integrate(ts_bckwd, [halo_potential, lmc_potential, friction], method = "dop853_c")
+    o_lmc_plot.integrate(ts_bckwd, [halo_potential, friction], method = "dop853_c")
 
     return o_lmc_plot
 
-def main(n=50_000):
+def main(n=250_000):
     gomp = ctypes.CDLL("libgomp.so.1")
     gomp.omp_set_num_threads(8)
     
@@ -659,10 +659,11 @@ def main(n=50_000):
     hq_df, orbits = sample_halo(halo_potential,n)
     
     lmc, o_lmc = make_lmc_orbit()
-    integrate_lmc_backward(hq_df,o_lmc,halo_potential) # was mw_interp
+    lmc.turn_physical_on(ro=ro,vo=vo)
+    integrate_lmc_backward(hq_df,o_lmc,halo_potential,lmc) # was mw_interp
     plot_galactocentric_distance(o_lmc)
     
-    lmc_moving = make_moving_object_potential(o_lmc,lmc,halo_potential) # was mw_interp
+    lmc_moving = integrate_lmc_forward(o_lmc,lmc,halo_potential) # was mw_interp
     
     loc_origin = 1e-4
     
@@ -682,15 +683,12 @@ def main(n=50_000):
     
     nif = NonInertialFrameForce(a0=[ax_int,ay_int,az_int])
     ts_bckwd = np.linspace(0, -3, 21) * u.Gyr
-    o_lmc_plot = make_plottable_lmc_orbit(hq_df,halo_potential,10*u.kpc) # was mw_interp
+    o_lmc_plot = make_plottable_lmc_orbit(hq_df,halo_potential, lmc, 10*u.kpc)
     np.save('results/o_lmc_x_plummer_radial', o_lmc_plot.x(ts_bckwd).value[::-1])
     np.save('results/o_lmc_y_plummer_radial', o_lmc_plot.y(ts_bckwd).value[::-1])
     np.save('results/o_lmc_z_plummer_radial', o_lmc_plot.z(ts_bckwd).value[::-1])
-     
+    
     # radially biased sample
-
-    stars_mw_sample = hq_df.sample(n=n)
-    stars_full_sample = hq_df.sample(n=n)
 
     r_grid = np.logspace(np.log10(0.1),np.log10(300),300) * u.kpc
     r_kpc = r_grid.value
@@ -699,12 +697,13 @@ def main(n=50_000):
     cdf = get_normalized_enclosed_mass(r_kpc,rho_r)
 
     r_samples = interpolate_samples(cdf,r_kpc,n)
+    np.save('results/r_samples_plummer_radial.npy',r_samples)
     R_samples, z_samples = sample_random_angles(r_samples,n)
 
     np.random.seed(0)
-    stars_mw_sample = hq_df.sample(n=n)
+    stars_mw_sample = hq_df.sample(n=n,R=R_samples*u.kpc,z=z_samples*u.kpc)
     np.random.seed(0)
-    stars_full_sample = hq_df.sample(n=n)
+    stars_full_sample = hq_df.sample(n=n,R=R_samples*u.kpc,z=z_samples*u.kpc)
 
     stars_mw = integrate_mw(stars_mw_sample,halo_potential,n) # was mw_interp
     r_mw_final = (np.sqrt(stars_mw.x(ts_fwd[-1])**2 + stars_mw.y(ts_fwd[-1])**2 + stars_mw.z(ts_fwd[-1])**2)).value
@@ -721,7 +720,7 @@ def main(n=50_000):
     # vr_mw, vt_x_mw, vt_y_mw, vt_z_mw = get_vr_vt(x_mw,y_mw,z_mw,vx_mw,vy_mw,vz_mw)
     vel_mw_cyl = get_vr_vt(*pos_mw, *vel_mw_cart)
     np.save('results/vel_mw_cyl_plummer_radial', vel_mw_cyl)
-
+    
     stars_full = integrate_full(stars_full_sample,halo_potential,lmc_moving,nif,n) # was mw_interp
     r_full_final = (np.sqrt(stars_full.x(ts_fwd[-1])**2 + stars_full.y(ts_fwd[-1])**2 + stars_full.z(ts_fwd[-1])**2)).value
 
