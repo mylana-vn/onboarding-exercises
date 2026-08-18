@@ -184,7 +184,7 @@ def main(n=250_000):
     loc_origin = 1e-4
     
     ts_fwd = np.linspace(-3., 0., 21) * u.Gyr
-    t_galpy = o_lmc.time(use_physical=False)
+    t_galpy = o_lmc.time(use_physical=False)[::-1]
 
     ax = np.array([evaluateRforces(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy])
     ay = np.array([evaluatephitorques(lmc_moving, loc_origin, 0., phi=0., t=t, use_physical=False) for t in t_galpy]) / loc_origin
